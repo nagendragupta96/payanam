@@ -26,6 +26,10 @@ import { AuthService } from '../../services/auth.service';
         <div class="card shadow-sm">
           <div class="card-body">
             <h3 class="h5 mb-3">{{ mode === 'login' ? 'Login' : 'Sign up' }}</h3>
+
+            <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
+            <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
+
             <form [formGroup]="form" (ngSubmit)="submit()">
               <input class="form-control mb-2" placeholder="Email" formControlName="email" />
               <input class="form-control mb-3" placeholder="Password" type="password" formControlName="password" />
@@ -38,7 +42,6 @@ import { AuthService } from '../../services/auth.service';
                 {{ mode === 'login' ? 'Need an account? Sign up' : 'Already have an account? Login' }}
               </button>
             </form>
-            <p class="mt-3 mb-0" [class.text-danger]="isError">{{ message }}</p>
           </div>
         </div>
       </div>
@@ -47,8 +50,8 @@ import { AuthService } from '../../services/auth.service';
 })
 export class AuthComponent {
   mode: 'login' | 'signup' = 'login';
-  message = '';
-  isError = false;
+  errorMessage = '';
+  infoMessage = '';
   loading = false;
 
   form = this.fb.group({
@@ -60,13 +63,15 @@ export class AuthComponent {
 
   toggleMode() {
     this.mode = this.mode === 'login' ? 'signup' : 'login';
-    this.message = '';
-    this.isError = false;
+    this.errorMessage = '';
+    this.infoMessage = '';
   }
 
   async submit() {
     if (this.form.invalid || this.loading) return;
     this.loading = true;
+    this.errorMessage = '';
+    this.infoMessage = '';
 
     try {
       const { email, password } = this.form.getRawValue();
@@ -75,20 +80,17 @@ export class AuthComponent {
         : await this.authService.signup(email!, password!);
 
       if (error) {
-        this.isError = true;
-        this.message = error;
+        this.errorMessage = error;
         return;
       }
 
-      this.isError = false;
-
       if (this.mode === 'login') {
-        this.message = 'Login successful.';
+        this.infoMessage = 'Login successful.';
         await this.router.navigate(['/home']);
         return;
       }
 
-      this.message = 'Signup successful. Please verify your email before login.';
+      this.infoMessage = 'Signup successful. Please verify your email before login.';
     } finally {
       this.loading = false;
     }

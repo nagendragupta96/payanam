@@ -1,6 +1,13 @@
 import { Injectable } from '@angular/core';
 import { supabase } from './supabase-client';
 
+export interface ChatMessage {
+  id: string;
+  body: string;
+  sender_id: string;
+  created_at?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   isSafeMessage(message: string): { safe: boolean; reason?: string } {
@@ -19,34 +26,56 @@ export class ChatService {
   async getThreadByRequest(requestId: string): Promise<{ data: any | null; error: string | null }> {
     const { data, error } = await supabase
       .from('chat_threads')
-      .select('*')
+      .select('id, request_id, owner_id, requester_id')
       .eq('request_id', requestId)
       .maybeSingle();
 
     return { data, error: error?.message ?? null };
   }
 
-  async listMessages(threadId: string): Promise<{ data: { id: string; body: string; sender_id: string }[]; error: string | null }> {
+  async listMessages(threadId: string): Promise<{ data: ChatMessage[]; error: string | null }> {
     const { data, error } = await supabase
       .from('chat_messages')
       .select('id, body, sender_id, created_at')
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true });
 
-    return { data: (data as any[]) ?? [], error: error?.message ?? null };
+    return { data: (data as ChatMessage[]) ?? [], error: error?.message ?? null };
   }
 
-  async sendMessage(threadId: string, senderId: string, body: string): Promise<string | null> {
+  async sendMessage(threadId: string, senderId: string, body: string): Promise<{ data: ChatMessage | null; error: string | null }> {
     const safety = this.isSafeMessage(body);
-    if (!safety.safe) return safety.reason ?? 'Message blocked by safety policy.';
+    if (!safety.safe) return { data: null, error: safety.reason ?? 'Message blocked by safety policy.' };
 
-    const { error } = await supabase.from('chat_messages').insert({
-      thread_id: threadId,
-      sender_id: senderId,
-      body
-    });
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .insert({
+        thread_id: threadId,
+        sender_id: senderId,
+        body
+      })
+      .select('id, body, sender_id, created_at')
+      .single();
 
-    return error?.message ?? null;
+    return { data: (data as ChatMessage) ?? null, error: error?.message ?? null };
+  }
+
+  async getProfileNames(userIds: string[]): Promise<Record<string, string>> {
+    const unique = [...new Set(userIds.filter(Boolean))];
+    if (!unique.length) return {};
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', unique);
+
+    const result: Record<string, string> = {};
+    for (const row of data ?? []) {
+      const item = row as { id: string; display_name?: string | null };
+      result[item.id] = item.display_name || 'User';
+    }
+
+    return result;
   }
 
   subscribeToThread(threadId: string, callback: (payload: any) => void) {

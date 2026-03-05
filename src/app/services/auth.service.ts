@@ -18,12 +18,13 @@ export class AuthService {
       if (session?.user) {
         await this.ensureProfileRecord(session.user);
       } else {
-        const onProtectedRoute = this.isProtectedRoute(this.router.url);
-        if (onProtectedRoute) {
-          await this.router.navigate(['/auth']);
-        }
+        await this.handleSignedOutState();
       }
     });
+
+    window.setInterval(() => {
+      this.loadSession();
+    }, 60000);
   }
 
   get currentSession(): Session | null {
@@ -36,6 +37,11 @@ export class AuthService {
 
     if (data.session?.user) {
       await this.ensureProfileRecord(data.session.user);
+    } else {
+      const onProtectedRoute = this.isProtectedRoute(this.router.url);
+      if (onProtectedRoute) {
+        await this.router.navigate(['/auth']);
+      }
     }
   }
 
@@ -77,7 +83,14 @@ export class AuthService {
   async logout(): Promise<void> {
     await supabase.auth.signOut();
     this.sessionSubject.next(null);
-    await this.router.navigate(['/home']);
+    await this.router.navigate(['/auth']);
+  }
+
+  private async handleSignedOutState(): Promise<void> {
+    const onProtectedRoute = this.isProtectedRoute(this.router.url);
+    if (onProtectedRoute) {
+      await this.router.navigate(['/auth']);
+    }
   }
 
   private isProtectedRoute(path: string): boolean {

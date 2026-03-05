@@ -19,6 +19,10 @@ export class RequestService {
 
     if (itinerary.error) return itinerary.error.message;
 
+    if (itinerary.data.owner_id === requesterId) {
+      return 'You cannot send a request for your own trip.';
+    }
+
     const { error } = await supabase.from('requests').insert({
       itinerary_id: itineraryId,
       requester_id: requesterId,
@@ -34,13 +38,13 @@ export class RequestService {
   async inbox(userId: string) {
     const incoming = await supabase
       .from('requests')
-      .select('*, itineraries(destination, origin_airport, destination_airport)')
+      .select('*, itineraries(destination, origin_airport_code, destination_airport_code)')
       .eq('owner_id', userId)
       .order('created_at', { ascending: false });
 
     const outgoing = await supabase
       .from('requests')
-      .select('*, itineraries(destination, origin_airport, destination_airport)')
+      .select('*, itineraries(destination, origin_airport_code, destination_airport_code)')
       .eq('requester_id', userId)
       .order('created_at', { ascending: false });
 

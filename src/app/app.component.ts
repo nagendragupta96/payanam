@@ -1,6 +1,8 @@
-import { Component } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, OnDestroy } from '@angular/core';
+import { NavigationStart, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { AuthService } from './services/auth.service';
+import { MessageNotificationService } from './services/message-notification.service';
 
 @Component({
   selector: 'app-root',
@@ -9,10 +11,25 @@ import { AuthService } from './services/auth.service';
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
-export class AppComponent {
+export class AppComponent implements OnDestroy {
   isNavOpen = false;
+  private readonly subscription: Subscription;
 
-  constructor(public authService: AuthService) {}
+  constructor(
+    public authService: AuthService,
+    public messageNotificationService: MessageNotificationService,
+    private router: Router
+  ) {
+    this.subscription = this.router.events.subscribe(async (event) => {
+      if (event instanceof NavigationStart) {
+        await this.authService.loadSession();
+
+        if (event.url.startsWith('/requests') || event.url.startsWith('/messages') || event.url.startsWith('/chat')) {
+          this.messageNotificationService.clearUnread();
+        }
+      }
+    });
+  }
 
   get isLoggedIn(): boolean {
     return !!this.authService.currentSession;
@@ -20,5 +37,9 @@ export class AppComponent {
 
   closeNav() {
     this.isNavOpen = false;
+  }
+
+  ngOnDestroy(): void {
+    this.subscription.unsubscribe();
   }
 }

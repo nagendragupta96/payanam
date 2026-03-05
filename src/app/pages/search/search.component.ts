@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, HostListener } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Itinerary } from '../../models/itinerary.model';
@@ -14,6 +14,9 @@ import { ItineraryContactService } from '../../services/itinerary-contact.servic
   imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink],
   template: `
     <h2 class="mb-3">Search Trips</h2>
+
+    <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
+    <div class="alert alert-info" *ngIf="infoMessage">{{ infoMessage }}</div>
 
     <form [formGroup]="form" (ngSubmit)="search()" class="card card-body mb-4">
       <div class="row g-3">
@@ -52,9 +55,6 @@ import { ItineraryContactService } from '../../services/itinerary-contact.servic
       </div>
     </form>
 
-    <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
-    <p class="mb-3">{{ message }}</p>
-
     <div class="row g-3" *ngIf="results.length">
       <div class="col-md-6 col-lg-4" *ngFor="let item of results">
         <div class="card h-100 shadow-sm">
@@ -62,91 +62,111 @@ import { ItineraryContactService } from '../../services/itinerary-contact.servic
             <h5 class="card-title">{{ item.origin_airport_code }} → {{ item.destination_airport_code }}</h5>
             <p class="card-text mb-1"><strong>Dates:</strong> {{ item.start_date }} → {{ item.end_date || 'One way' }}</p>
             <p class="card-text"><strong>Legs:</strong> {{ item.legs.length }}</p>
-            <button class="btn btn-outline-primary btn-sm" (click)="openTrip(item)">View Trip</button>
+            <button class="btn btn-outline-primary btn-sm" [disabled]="loadingTripId === item.id" (click)="openTrip(item)">
+              <span *ngIf="loadingTripId === item.id" class="spinner-border spinner-border-sm me-1"></span>
+              View Trip
+            </button>
           </div>
         </div>
       </div>
     </div>
 
-    <div *ngIf="selectedTrip" class="modal d-block" tabindex="-1" role="dialog">
-      <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Trip details</h5>
-            <button type="button" class="btn-close" (click)="closeTrip()"></button>
-          </div>
-          <div class="modal-body">
-            <div class="alert alert-danger" *ngIf="tripError">{{ tripError }}</div>
-            <p><strong>Route:</strong> {{ selectedTrip.origin_airport_code }} → {{ selectedTrip.destination_airport_code }}</p>
-            <p><strong>Travel:</strong> {{ selectedTrip.start_date }} → {{ selectedTrip.end_date || 'One way' }}</p>
-
-            <h6>Legs</h6>
-            <ul class="list-group mb-3">
-              <li class="list-group-item" *ngFor="let leg of selectedTrip.legs">
-                #{{ leg.leg_order }} {{ leg.origin_airport_code }} → {{ leg.destination_airport_code }}
-                ({{ leg.carrier }} {{ leg.flight_number }}{{ leg.flight_code ? ' / ' + leg.flight_code : '' }})
-              </li>
-            </ul>
-
-            <div *ngIf="!isLoggedIn" class="alert alert-info mb-3 d-flex justify-content-between align-items-center">
-              <span>Logged-out users can search, but cannot request/chat.</span>
-              <a class="btn btn-sm btn-primary" routerLink="/auth" (click)="closeTrip()">Login to request companion/assistance</a>
+    <ng-container *ngIf="selectedTrip">
+      <div class="modal-backdrop fade show trip-modal-backdrop" (click)="closeTrip()"></div>
+      <div class="modal fade show d-block trip-modal" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document" (click)="$event.stopPropagation()">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Trip details</h5>
+              <button type="button" class="btn-close" (click)="closeTrip()"></button>
             </div>
+            <div class="modal-body">
+              <div class="alert alert-danger" *ngIf="tripError">{{ tripError }}</div>
+              <div class="alert alert-success" *ngIf="tripInfo">{{ tripInfo }}</div>
 
-            <div *ngIf="isLoggedIn && isSelfTrip" class="alert alert-secondary mb-3">This is your trip.</div>
+              <p><strong>Route:</strong> {{ selectedTrip.origin_airport_code }} → {{ selectedTrip.destination_airport_code }}</p>
+              <p><strong>Travel:</strong> {{ selectedTrip.start_date }} → {{ selectedTrip.end_date || 'One way' }}</p>
 
-            <div *ngIf="isLoggedIn && !isSelfTrip" class="d-flex flex-wrap gap-2 mb-3">
-              <button class="btn btn-primary" [disabled]="requestLoading" (click)="sendRequest('COMPANION')">
-                <span *ngIf="requestLoading" class="spinner-border spinner-border-sm me-2"></span>
-                Request Companion
-              </button>
-              <button class="btn btn-outline-primary" [disabled]="requestLoading" (click)="sendRequest('ASSISTANCE')">
-                Request Assistance
-              </button>
-            </div>
+              <h6>Legs</h6>
+              <ul class="list-group mb-3">
+                <li class="list-group-item" *ngFor="let leg of selectedTrip.legs">
+                  #{{ leg.leg_order }} {{ leg.origin_airport_code }} → {{ leg.destination_airport_code }}
+                  ({{ leg.carrier }} {{ leg.flight_number }}{{ leg.flight_code ? ' / ' + leg.flight_code : '' }})
+                </li>
+              </ul>
 
-            <h6>Contact Details</h6>
-            <div *ngIf="isSelfTrip; else requesterContactBlock">
-              <div class="row g-2">
-                <div class="col-md-6"><input class="form-control" [(ngModel)]="contactForm.contact_name" [ngModelOptions]="{standalone: true}" placeholder="Contact name" /></div>
-                <div class="col-md-6"><input class="form-control" [(ngModel)]="contactForm.contact_phone" [ngModelOptions]="{standalone: true}" placeholder="Contact phone" /></div>
-                <div class="col-md-6"><input class="form-control" [(ngModel)]="contactForm.contact_email" [ngModelOptions]="{standalone: true}" placeholder="Contact email" /></div>
-                <div class="col-md-12"><textarea class="form-control" [(ngModel)]="contactForm.notes" [ngModelOptions]="{standalone: true}" rows="2" placeholder="Notes"></textarea></div>
+              <div *ngIf="!isLoggedIn" class="alert alert-info mb-3 d-flex justify-content-between align-items-center">
+                <span>Logged-out users can search, but cannot request/chat.</span>
+                <a class="btn btn-sm btn-primary" routerLink="/auth" (click)="closeTrip()">Login to request companion/assistance</a>
               </div>
-              <button class="btn btn-sm btn-success mt-2" [disabled]="savingContact" (click)="saveContactDetails()">
-                <span *ngIf="savingContact" class="spinner-border spinner-border-sm me-2"></span>
-                Save Contact Details
-              </button>
-            </div>
-            <ng-template #requesterContactBlock>
-              <div *ngIf="canViewContactDetails; else lockedContact">
-                <p class="mb-1"><strong>Name:</strong> {{ contactForm.contact_name || '-' }}</p>
-                <p class="mb-1"><strong>Phone:</strong> {{ contactForm.contact_phone || '-' }}</p>
-                <p class="mb-1"><strong>Email:</strong> {{ contactForm.contact_email || '-' }}</p>
-                <p class="mb-0"><strong>Notes:</strong> {{ contactForm.notes || '-' }}</p>
+
+              <div *ngIf="isLoggedIn && isSelfTrip" class="alert alert-secondary mb-3">This is your trip.</div>
+
+              <div *ngIf="isLoggedIn && !isSelfTrip" class="d-flex flex-wrap gap-2 mb-3">
+                <button class="btn btn-primary" [disabled]="requestLoading" (click)="sendRequest('COMPANION')">
+                  <span *ngIf="requestLoading" class="spinner-border spinner-border-sm me-2"></span>
+                  Request Companion
+                </button>
+                <button class="btn btn-outline-primary" [disabled]="requestLoading" (click)="sendRequest('ASSISTANCE')">
+                  Request Assistance
+                </button>
               </div>
-              <ng-template #lockedContact>
-                <div class="alert alert-warning mb-0">Contact details available after request approval.</div>
+
+              <h6>Contact Details</h6>
+              <div *ngIf="isSelfTrip; else requesterContactBlock">
+                <div class="row g-2">
+                  <div class="col-md-6"><input class="form-control" [(ngModel)]="contactForm.contact_name" [ngModelOptions]="{standalone: true}" placeholder="Contact name" /></div>
+                  <div class="col-md-6"><input class="form-control" [(ngModel)]="contactForm.contact_phone" [ngModelOptions]="{standalone: true}" placeholder="Contact phone" /></div>
+                  <div class="col-md-6"><input class="form-control" [(ngModel)]="contactForm.contact_email" [ngModelOptions]="{standalone: true}" placeholder="Contact email" /></div>
+                  <div class="col-md-12"><textarea class="form-control" [(ngModel)]="contactForm.notes" [ngModelOptions]="{standalone: true}" rows="2" placeholder="Notes"></textarea></div>
+                </div>
+                <button class="btn btn-sm btn-success mt-2" [disabled]="savingContact" (click)="saveContactDetails()">
+                  <span *ngIf="savingContact" class="spinner-border spinner-border-sm me-2"></span>
+                  Save Contact Details
+                </button>
+              </div>
+              <ng-template #requesterContactBlock>
+                <div *ngIf="canViewContactDetails; else lockedContact">
+                  <p class="mb-1"><strong>Name:</strong> {{ contactForm.contact_name || '-' }}</p>
+                  <p class="mb-1"><strong>Phone:</strong> {{ contactForm.contact_phone || '-' }}</p>
+                  <p class="mb-1"><strong>Email:</strong> {{ contactForm.contact_email || '-' }}</p>
+                  <p class="mb-0"><strong>Notes:</strong> {{ contactForm.notes || '-' }}</p>
+                </div>
+                <ng-template #lockedContact>
+                  <div class="alert alert-warning mb-0">Contact details available after request approval.</div>
+                </ng-template>
               </ng-template>
-            </ng-template>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" (click)="closeTrip()">Close</button>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" (click)="closeTrip()">Close</button>
+            </div>
           </div>
         </div>
       </div>
-      <div class="modal-backdrop show"></div>
-    </div>
-  `
+    </ng-container>
+  `,
+  styles: [
+    `
+      .trip-modal {
+        z-index: 1060;
+      }
+
+      .trip-modal-backdrop {
+        z-index: 1050;
+      }
+    `
+  ]
 })
 export class SearchComponent {
-  message = 'Use airport codes and date range to search.';
   errorMessage = '';
+  infoMessage = 'Use airport codes and date range to search.';
   results: Itinerary[] = [];
   loadingSearch = false;
+  loadingTripId = '';
 
   selectedTrip: Itinerary | null = null;
   tripError = '';
+  tripInfo = '';
   requestLoading = false;
   savingContact = false;
   canViewContactDetails = false;
@@ -178,6 +198,11 @@ export class SearchComponent {
     return !!this.selectedTrip && this.selectedTrip.owner_id === this.authService.currentSession?.user.id;
   }
 
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.selectedTrip) this.closeTrip();
+  }
+
   private normalizeAirport(code: string | null | undefined): string | undefined {
     const value = (code ?? '').replace(/\s+/g, '').toUpperCase();
     return value || undefined;
@@ -185,12 +210,13 @@ export class SearchComponent {
 
   async search() {
     if (this.form.invalid || this.loadingSearch) {
-      this.message = 'Origin, destination, start date and end date are required.';
+      this.errorMessage = 'Origin, destination, start date and end date are required.';
       return;
     }
 
     this.loadingSearch = true;
     this.errorMessage = '';
+    this.infoMessage = '';
 
     try {
       const value = this.form.getRawValue();
@@ -204,16 +230,21 @@ export class SearchComponent {
       });
 
       this.results = data;
-      if (error) this.errorMessage = error;
-      this.message = error ?? `${data.length} itinerary(ies) found.`;
+      if (error) {
+        this.errorMessage = error;
+      } else {
+        this.infoMessage = `${data.length} itinerary(ies) found.`;
+      }
     } finally {
       this.loadingSearch = false;
     }
   }
 
   async openTrip(item: Itinerary) {
+    this.loadingTripId = item.id ?? '';
     this.selectedTrip = null;
     this.tripError = '';
+    this.tripInfo = '';
     this.canViewContactDetails = false;
     this.contactForm = { contact_name: '', contact_phone: '', contact_email: '', notes: '' };
 
@@ -221,20 +252,23 @@ export class SearchComponent {
     if (error || !data) {
       this.tripError = error ?? 'Unable to load trip details.';
       this.selectedTrip = item;
+      this.loadingTripId = '';
       return;
     }
 
     this.selectedTrip = data;
     await this.loadContactDetails();
+    this.loadingTripId = '';
   }
 
   closeTrip() {
     this.selectedTrip = null;
     this.tripError = '';
+    this.tripInfo = '';
   }
 
   async sendRequest(type: RequestType) {
-    if (!this.selectedTrip || this.requestLoading) return;
+    if (!this.selectedTrip || this.requestLoading || this.isSelfTrip) return;
 
     const userId = this.authService.currentSession?.user.id;
     if (!userId) {
@@ -244,6 +278,7 @@ export class SearchComponent {
 
     this.requestLoading = true;
     this.tripError = '';
+    this.tripInfo = '';
 
     try {
       const error = await this.requestService.createRequest(this.selectedTrip.id!, userId, type);
@@ -251,7 +286,7 @@ export class SearchComponent {
         this.tripError = error;
         return;
       }
-      this.tripError = `${type} request sent.`;
+      this.tripInfo = `${type} request sent.`;
       await this.loadContactDetails();
     } finally {
       this.requestLoading = false;
@@ -297,6 +332,7 @@ export class SearchComponent {
 
     this.savingContact = true;
     this.tripError = '';
+    this.tripInfo = '';
 
     try {
       const error = await this.itineraryContactService.upsert({
@@ -313,7 +349,7 @@ export class SearchComponent {
         return;
       }
 
-      this.tripError = 'Contact details saved.';
+      this.tripInfo = 'Contact details saved.';
     } finally {
       this.savingContact = false;
     }

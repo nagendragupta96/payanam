@@ -20,6 +20,7 @@ import { RequestService } from '../../services/request.service';
         </div>
 
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
+        <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
 
         <h3 class="h6">Incoming</h3>
         <ul class="list-group mb-3">
@@ -56,6 +57,7 @@ export class RequestsInboxComponent {
   loading = false;
   acceptingId = '';
   errorMessage = '';
+  infoMessage = '';
 
   constructor(private authService: AuthService, private requestService: RequestService, private router: Router) {
     this.load();
@@ -82,6 +84,7 @@ export class RequestsInboxComponent {
     if (!requestId) return;
     this.acceptingId = requestId;
     this.errorMessage = '';
+    this.infoMessage = '';
 
     try {
       const { threadId, error } = await this.requestService.acceptRequest(requestId);
@@ -89,6 +92,7 @@ export class RequestsInboxComponent {
         this.errorMessage = error;
         return;
       }
+      this.infoMessage = 'Request accepted.';
       await this.load();
       if (threadId) {
         await this.router.navigate(['/messages', requestId]);
