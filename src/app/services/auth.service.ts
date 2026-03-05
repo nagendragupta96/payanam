@@ -28,7 +28,11 @@ export class AuthService {
   }
 
   async signup(email: string, password: string): Promise<string | null> {
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/auth` }
+    });
     if (error) return error.message;
 
     // Do not force profile insert at signup time because many Supabase setups

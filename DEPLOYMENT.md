@@ -2,10 +2,16 @@
 
 ## 1) Supabase setup
 1. Create a Supabase project.
-2. Enable Auth providers (email/password minimum).
-3. Create Postgres tables: `profiles`, `itineraries`, `travel_requests`, `messages`.
-4. Enable Realtime on `messages` (and optionally `travel_requests`).
-5. Set Row Level Security policies to restrict records to authorized users.
+2. Enable Auth provider: Email.
+3. Ensure **Auth → URL Configuration** is set:
+   - Site URL (your app URL)
+   - Redirect URL includes `/auth` route
+4. Run your project schema SQL (tables) and then run:
+   - `supabase/001_auth_profiles_bootstrap.sql`
+
+This adds:
+- RLS policies for `profiles`
+- trigger `on_auth_user_created` to auto-create `profiles` row from `auth.users`
 
 ## 2) Configure Angular environment
 Update `src/environments/environment.ts`:
@@ -26,16 +32,12 @@ Build output is under `dist/travel-companion/browser`.
 4. Build settings:
    - Build command: `npm run build`
    - Build output directory: `dist/travel-companion/browser`
-5. Add environment variables (optional, for CI scripts):
-   - `SUPABASE_URL`
-   - `SUPABASE_ANON_KEY`
-6. Deploy.
+5. Deploy.
 
 ## 5) SPA routing support
 This repo includes `src/_redirects` and `angular.json` assets config so Cloudflare serves `index.html` for client routes.
 
 ## 6) Optional Wrangler deployment
-You can also deploy with Wrangler using `wrangler.toml`:
 ```bash
 npm run build
 npx wrangler pages deploy dist/travel-companion/browser

@@ -39,6 +39,13 @@ export class AuthComponent {
       ? await this.authService.login(email!, password!)
       : await this.authService.signup(email!, password!);
 
-    this.message = error ?? 'Success. Check your email if confirmation is enabled.';
+    if (error) {
+      this.message = error;
+      return;
+    }
+
+    this.message = this.mode === 'signup'
+      ? 'Signup successful. If you do not receive a confirmation email, verify Supabase Auth Email provider/SMTP settings and Site URL.'
+      : 'Login successful.';
   }
 }
