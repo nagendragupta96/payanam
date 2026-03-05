@@ -51,7 +51,7 @@ import { ItineraryService } from '../../services/itinerary.service';
       <table class="table table-striped table-hover align-middle">
         <thead>
           <tr>
-            <th>Title</th>
+            <th>Route</th>
             <th>Destination</th>
             <th>Dates</th>
             <th>Legs</th>
@@ -60,9 +60,9 @@ import { ItineraryService } from '../../services/itinerary.service';
         </thead>
         <tbody>
           <tr *ngFor="let item of results">
-            <td>{{ item.title }}</td>
-            <td>{{ item.destination }}</td>
-            <td>{{ readDate(item, 'start') }} → {{ readDate(item, 'end') }}</td>
+            <td>{{ item.origin_airport }} → {{ item.destination_airport }}</td>
+            <td>{{ item.destination || '-' }}</td>
+            <td>{{ item.depart_date }} → {{ item.return_date || 'One way' }}</td>
             <td>{{ item.legs.length }}</td>
             <td>
               <a class="btn btn-sm btn-outline-primary" [routerLink]="['/itinerary', item.id]">View</a>
@@ -104,10 +104,5 @@ export class SearchComponent {
 
     this.results = data;
     this.message = error ?? `${data.length} itinerary(ies) found. Sorted by strongest match.`;
-  }
-
-  readDate(itinerary: any, type: 'start' | 'end'): string {
-    if (type === 'start') return itinerary.start_date ?? itinerary.startDate ?? '-';
-    return itinerary.end_date ?? itinerary.endDate ?? '-';
   }
 }

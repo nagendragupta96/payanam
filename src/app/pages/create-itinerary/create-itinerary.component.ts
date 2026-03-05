@@ -11,22 +11,24 @@ import { ItineraryService } from '../../services/itinerary.service';
   template: `
     <h2>Create Itinerary</h2>
     <form [formGroup]="form" (ngSubmit)="submit()">
-      <input formControlName="title" placeholder="Trip title" />
-      <input formControlName="destination" placeholder="Destination" />
-      <input type="date" formControlName="startDate" />
-      <input type="date" formControlName="endDate" />
+      <input formControlName="origin_airport" placeholder="Origin airport" />
+      <input formControlName="destination_airport" placeholder="Destination airport" />
+      <input formControlName="destination" placeholder="Destination city/country" />
+      <input type="date" formControlName="depart_date" />
+      <input type="date" formControlName="return_date" />
+
       <div formArrayName="legs">
         <div *ngFor="let leg of legs.controls; index as i" [formGroupName]="i">
           <h4>Leg {{ i + 1 }}</h4>
-          <input formControlName="originAirport" placeholder="Origin airport" />
-          <input formControlName="destinationAirport" placeholder="Destination airport" />
-          <input type="date" formControlName="departureDate" />
-          <input type="date" formControlName="arrivalDate" />
+          <input formControlName="origin_airport" placeholder="Origin airport" />
+          <input formControlName="destination_airport" placeholder="Destination airport" />
           <input formControlName="carrier" placeholder="Carrier" />
-          <input formControlName="flightNumber" placeholder="Flight Number" />
-          <input formControlName="flightCode" placeholder="Flight code (AA123)" />
+          <input formControlName="flight_number" placeholder="Flight Number" />
+          <input type="datetime-local" formControlName="departure_at" />
+          <input type="datetime-local" formControlName="arrival_at" />
         </div>
       </div>
+
       <button type="button" (click)="addLeg()">Add leg</button>
       <button type="submit">Publish itinerary</button>
     </form>
@@ -37,12 +39,13 @@ export class CreateItineraryComponent {
   message = '';
 
   form = this.fb.group({
-    title: ['', Validators.required],
-    destination: ['', Validators.required],
-    startDate: ['', Validators.required],
-    endDate: ['', Validators.required],
-    legs: this.fb.array([this.createLegGroup()]),
-    notes: ['']
+    origin_airport: ['', Validators.required],
+    destination_airport: ['', Validators.required],
+    destination: [''],
+    depart_date: ['', Validators.required],
+    return_date: [''],
+    notes: [''],
+    legs: this.fb.array([this.createLegGroup()])
   });
 
   get legs(): FormArray {
@@ -57,13 +60,12 @@ export class CreateItineraryComponent {
 
   createLegGroup() {
     return this.fb.group({
-      originAirport: ['', Validators.required],
-      destinationAirport: ['', Validators.required],
-      departureDate: ['', Validators.required],
-      arrivalDate: ['', Validators.required],
+      origin_airport: ['', Validators.required],
+      destination_airport: ['', Validators.required],
       carrier: ['', Validators.required],
-      flightNumber: ['', Validators.required],
-      flightCode: ['', Validators.required]
+      flight_number: ['', Validators.required],
+      departure_at: [''],
+      arrival_at: ['']
     });
   }
 
@@ -77,19 +79,20 @@ export class CreateItineraryComponent {
 
     const value = this.form.getRawValue();
     const itinerary = {
-      title: value.title ?? '',
-      destination: value.destination ?? '',
-      startDate: value.startDate ?? '',
-      endDate: value.endDate ?? '',
-      notes: value.notes ?? '',
-      legs: (value.legs ?? []).map((leg) => ({
-        originAirport: leg.originAirport ?? '',
-        destinationAirport: leg.destinationAirport ?? '',
-        departureDate: leg.departureDate ?? '',
-        arrivalDate: leg.arrivalDate ?? '',
+      origin_airport: value.origin_airport ?? '',
+      destination_airport: value.destination_airport ?? '',
+      destination: value.destination ?? null,
+      depart_date: value.depart_date ?? '',
+      return_date: value.return_date ?? null,
+      notes: value.notes ?? null,
+      legs: (value.legs ?? []).map((leg, index) => ({
+        leg_order: index + 1,
+        origin_airport: leg.origin_airport ?? '',
+        destination_airport: leg.destination_airport ?? '',
         carrier: leg.carrier ?? '',
-        flightNumber: leg.flightNumber ?? '',
-        flightCode: leg.flightCode ?? ''
+        flight_number: leg.flight_number ?? '',
+        departure_at: leg.departure_at || null,
+        arrival_at: leg.arrival_at || null
       }))
     };
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { supabase } from './supabase-client';
-import { Itinerary } from '../models/itinerary.model';
+import { FlightLeg, Itinerary } from '../models/itinerary.model';
 
 interface SearchParams {
   destination: string;
@@ -18,89 +18,125 @@ interface RankedItinerary {
 @Injectable({ providedIn: 'root' })
 export class ItineraryService {
   async createItinerary(itinerary: Itinerary, userId: string): Promise<string | null> {
-    const { error } = await supabase.from('itineraries').insert({ ...itinerary, user_id: userId });
-    return error?.message ?? null;
+    const header = {
+      owner_id: userId,
+      origin_airport: itinerary.origin_airport,
+      destination_airport: itinerary.destination_airport,
+      destination: itinerary.destination ?? null,
+      depart_date: itinerary.depart_date,
+      return_date: itinerary.return_date ?? null,
+      notes: itinerary.notes ?? null
+    };
+
+    const created = await supabase.from('itineraries').insert(header).select('id').single();
+    if (created.error) return created.error.message;
+
+    const itineraryId = created.data.id as string;
+    const legs = (itinerary.legs ?? []).map((leg, index) => ({
+      itinerary_id: itineraryId,
+      leg_order: index + 1,
+      origin_airport: leg.origin_airport,
+      destination_airport: leg.destination_airport,
+      carrier: leg.carrier,
+      flight_number: leg.flight_number,
+      departure_at: leg.departure_at ?? null,
+      arrival_at: leg.arrival_at ?? null
+    }));
+
+    if (legs.length) {
+      const { error } = await supabase.from('itinerary_legs').insert(legs);
+      if (error) return error.message;
+    }
+
+    return null;
   }
 
   async search(params: SearchParams): Promise<{ data: Itinerary[]; error: string | null }> {
-    const normalizedDestination = params.destination.trim();
-    const normalizedAirport = params.airport?.trim().toUpperCase();
-    const normalizedFlightCode = this.normalizeFlightCode(params.flightCode ?? '');
+    const destination = params.destination.trim();
+    const airport = params.airport?.trim().toUpperCase();
+    const flightCode = this.normalizeFlightCode(params.flightCode ?? '');
 
-    let query = supabase
+    const base = await supabase
       .from('itineraries')
       .select('*')
-      .or(`destination.ilike.%${normalizedDestination}%,destination_city.ilike.%${normalizedDestination}%,destination_country.ilike.%${normalizedDestination}%`)
-      .lte('start_date', params.userEnd)
-      .gte('end_date', params.userStart);
+      .ilike('destination', `%${destination}%`)
+      .lte('depart_date', params.userEnd)
+      .or(`return_date.gte.${params.userStart},return_date.is.null`)
+      .limit(200);
 
-    const { data, error } = await query.limit(200);
-    if (error) return { data: [], error: error.message };
+    if (base.error) return { data: [], error: base.error.message };
 
-    const ranked = ((data ?? []) as Itinerary[])
-      .map((itinerary) => this.rankItinerary(itinerary, normalizedAirport, normalizedFlightCode))
-      .filter((item) => {
-        if (normalizedFlightCode && item.score < 3) return false;
-        if (!normalizedFlightCode && normalizedAirport && item.score < 2) return false;
-        return item.score > 0;
-      });
+    const itineraries = (base.data ?? []) as Itinerary[];
+    if (!itineraries.length) return { data: [], error: null };
 
-    const unique = new Map<string, RankedItinerary>();
-    for (const item of ranked) {
-      const key = item.itinerary.id ?? JSON.stringify(item.itinerary);
-      const existing = unique.get(key);
-      if (!existing || item.score > existing.score) {
-        unique.set(key, item);
-      }
+    const ids = itineraries.map((i) => i.id).filter(Boolean) as string[];
+    const legsResult = await supabase
+      .from('itinerary_legs')
+      .select('*')
+      .in('itinerary_id', ids)
+      .order('leg_order', { ascending: true });
+
+    if (legsResult.error) return { data: [], error: legsResult.error.message };
+
+    const legsByItinerary = new Map<string, FlightLeg[]>();
+    for (const leg of (legsResult.data ?? []) as FlightLeg[]) {
+      const list = legsByItinerary.get(leg.itinerary_id!) ?? [];
+      list.push(leg);
+      legsByItinerary.set(leg.itinerary_id!, list);
     }
 
-    const sorted = [...unique.values()]
-      .sort((a, b) => b.score - a.score)
-      .map((item) => item.itinerary);
+    const withLegs = itineraries
+      .map((it) => ({ ...it, legs: legsByItinerary.get(it.id!) ?? [] }))
+      .filter((it) => {
+        const effectiveEnd = it.return_date || it.depart_date;
+        return effectiveEnd >= params.userStart;
+      });
 
-    return { data: sorted, error: null };
+    const ranked = withLegs.map((itinerary) => this.rankItinerary(itinerary, airport, flightCode));
+
+    const filtered = ranked.filter((item) => {
+      if (flightCode) return item.score >= 3;
+      if (airport) return item.score >= 2;
+      return item.score >= 1;
+    });
+
+    const distinct = new Map<string, RankedItinerary>();
+    for (const item of filtered) {
+      const key = item.itinerary.id!;
+      const existing = distinct.get(key);
+      if (!existing || item.score > existing.score) distinct.set(key, item);
+    }
+
+    return {
+      data: [...distinct.values()].sort((a, b) => b.score - a.score).map((v) => v.itinerary),
+      error: null
+    };
+  }
+
+  async findById(id: string): Promise<{ data: Itinerary | null; error: string | null }> {
+    const header = await supabase.from('itineraries').select('*').eq('id', id).maybeSingle();
+    if (header.error) return { data: null, error: header.error.message };
+    if (!header.data) return { data: null, error: null };
+
+    const legs = await supabase
+      .from('itinerary_legs')
+      .select('*')
+      .eq('itinerary_id', id)
+      .order('leg_order', { ascending: true });
+
+    if (legs.error) return { data: null, error: legs.error.message };
+
+    return { data: { ...(header.data as Itinerary), legs: (legs.data ?? []) as FlightLeg[] }, error: null };
   }
 
   private rankItinerary(itinerary: Itinerary, airport?: string, flightCode?: string): RankedItinerary {
     const legs = itinerary.legs ?? [];
+    const hasFlightCode = Boolean(flightCode && legs.some((l) => this.normalizeFlightCode(l.flight_code ?? '') === flightCode));
+    const hasAirport = Boolean(airport && legs.some((l) => l.origin_airport?.toUpperCase() === airport || l.destination_airport?.toUpperCase() === airport));
 
-    const hasFlightCodeMatch = Boolean(
-      flightCode &&
-      legs.some((leg) => this.normalizeFlightCode(this.readFlightCode(leg)) === flightCode)
-    );
-
-    const hasAirportMatch = Boolean(
-      airport &&
-      legs.some((leg) => {
-        const depart = this.readAirport(leg, 'depart');
-        const arrive = this.readAirport(leg, 'arrive');
-        return depart === airport || arrive === airport;
-      })
-    );
-
-    if (hasFlightCodeMatch) return { itinerary, score: 3 };
-    if (hasAirportMatch) return { itinerary, score: 2 };
+    if (hasFlightCode) return { itinerary, score: 3 };
+    if (hasAirport) return { itinerary, score: 2 };
     return { itinerary, score: 1 };
-  }
-
-  private readAirport(leg: any, type: 'depart' | 'arrive'): string {
-    const keys = type === 'depart'
-      ? ['depart_airport_code', 'departure_airport_code', 'origin_airport', 'originAirport']
-      : ['arrive_airport_code', 'arrival_airport_code', 'destination_airport', 'destinationAirport'];
-
-    for (const key of keys) {
-      const value = leg[key];
-      if (typeof value === 'string' && value.trim()) {
-        return value.trim().toUpperCase();
-      }
-    }
-
-    return '';
-  }
-
-  private readFlightCode(leg: any): string {
-    const value = leg['flight_code'] ?? leg['flightCode'];
-    return typeof value === 'string' ? value : '';
   }
 
   private normalizeFlightCode(input: string): string {

@@ -12,10 +12,10 @@ import { RequestService } from '../../services/request.service';
     <button (click)="load()">Refresh</button>
 
     <h3>Incoming</h3>
-    <ul><li *ngFor="let req of incoming">{{ req.type }} - {{ req.status }}</li></ul>
+    <ul><li *ngFor="let req of incoming">{{ req.status }} - {{ req.message || 'No message' }}</li></ul>
 
     <h3>Outgoing</h3>
-    <ul><li *ngFor="let req of outgoing">{{ req.type }} - {{ req.status }}</li></ul>
+    <ul><li *ngFor="let req of outgoing">{{ req.status }} - {{ req.message || 'No message' }}</li></ul>
 
     <p>{{ message }}</p>
   `

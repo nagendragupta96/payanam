@@ -10,9 +10,8 @@ import { AuthService } from '../../services/auth.service';
   template: `
     <h2>Profile</h2>
     <form [formGroup]="form" (ngSubmit)="save()">
-      <input formControlName="fullName" placeholder="Full name" />
-      <input formControlName="homeAirport" placeholder="Home airport" />
-      <textarea formControlName="bio" placeholder="Travel style and assistance needs"></textarea>
+      <input formControlName="displayName" placeholder="Display name" />
+      <input formControlName="avatarUrl" placeholder="Avatar URL" />
       <button>Save Profile</button>
     </form>
     <p>{{ message }}</p>
@@ -22,12 +21,29 @@ export class ProfileComponent {
   message = '';
 
   form = this.fb.group({
-    fullName: [''],
-    homeAirport: [''],
-    bio: ['']
+    displayName: [''],
+    avatarUrl: ['']
   });
 
-  constructor(private fb: FormBuilder, private authService: AuthService) {}
+  constructor(private fb: FormBuilder, private authService: AuthService) {
+    this.loadProfile();
+  }
+
+  async loadProfile() {
+    const userId = this.authService.currentSession?.user.id;
+    if (!userId) return;
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('display_name, avatar_url')
+      .eq('id', userId)
+      .maybeSingle();
+
+    this.form.patchValue({
+      displayName: data?.display_name ?? '',
+      avatarUrl: data?.avatar_url ?? ''
+    });
+  }
 
   async save() {
     const userId = this.authService.currentSession?.user.id;
@@ -35,9 +51,8 @@ export class ProfileComponent {
 
     const { error } = await supabase.from('profiles').upsert({
       id: userId,
-      full_name: this.form.value.fullName,
-      home_airport: this.form.value.homeAirport,
-      bio: this.form.value.bio
+      display_name: this.form.value.displayName,
+      avatar_url: this.form.value.avatarUrl
     });
 
     this.message = error?.message ?? 'Profile saved.';

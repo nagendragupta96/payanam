@@ -13,9 +13,7 @@ export class AuthService {
     this.loadSession();
     supabase.auth.onAuthStateChange(async (_event, session) => {
       this.sessionSubject.next(session);
-      if (session?.user) {
-        await this.ensureProfileRecord(session.user);
-      }
+      if (session?.user) await this.ensureProfileRecord(session.user);
     });
   }
 
@@ -26,33 +24,20 @@ export class AuthService {
   async loadSession(): Promise<void> {
     const { data } = await supabase.auth.getSession();
     this.sessionSubject.next(data.session);
-
-    if (data.session?.user) {
-      await this.ensureProfileRecord(data.session.user);
-    }
+    if (data.session?.user) await this.ensureProfileRecord(data.session.user);
   }
 
   async signup(email: string, password: string): Promise<string | null> {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return error.message;
-
-    if (data.user) {
-      const profileError = await this.ensureProfileRecord(data.user);
-      if (profileError) return profileError;
-    }
-
+    if (data.user) return this.ensureProfileRecord(data.user);
     return null;
   }
 
   async login(email: string, password: string): Promise<string | null> {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
-
-    if (data.user) {
-      const profileError = await this.ensureProfileRecord(data.user);
-      if (profileError) return profileError;
-    }
-
+    if (data.user) return this.ensureProfileRecord(data.user);
     return null;
   }
 
@@ -62,17 +47,14 @@ export class AuthService {
   }
 
   private async ensureProfileRecord(user: User): Promise<string | null> {
-    const payload = {
-      id: user.id,
-      email: user.email ?? null,
-      full_name: user.user_metadata?.['full_name'] ?? null,
-      home_airport: null,
-      bio: null
-    };
-
-    const { error } = await supabase
-      .from('profiles')
-      .upsert(payload, { onConflict: 'id', ignoreDuplicates: true });
+    const { error } = await supabase.from('profiles').upsert(
+      {
+        id: user.id,
+        display_name: user.user_metadata?.['display_name'] ?? user.email ?? null,
+        avatar_url: user.user_metadata?.['avatar_url'] ?? null
+      },
+      { onConflict: 'id' }
+    );
 
     return error?.message ?? null;
   }

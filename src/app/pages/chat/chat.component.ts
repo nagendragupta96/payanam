@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
 import { ChatService } from '../../services/chat.service';
@@ -19,14 +20,14 @@ import { ChatService } from '../../services/chat.service';
 
     <p>{{ warning }}</p>
     <ul>
-      <li *ngFor="let msg of messages">{{ msg }}</li>
+      <li *ngFor="let msg of messages">{{ msg.body }}</li>
     </ul>
   `
 })
 export class ChatComponent implements OnDestroy {
   warning = '';
-  chatId = 'DEMO_CHAT_ID';
-  messages: string[] = [];
+  messages: { id: string; body: string; sender_id: string }[] = [];
+  private threadId: string | null = null;
   private channel: { unsubscribe: () => void } | null = null;
 
   form = this.fb.group({
@@ -36,21 +37,48 @@ export class ChatComponent implements OnDestroy {
   constructor(
     private fb: FormBuilder,
     private chatService: ChatService,
-    private authService: AuthService
+    private authService: AuthService,
+    private route: ActivatedRoute
   ) {
-    this.channel = this.chatService.subscribeToChat(this.chatId, (payload: any) => {
-      this.messages.push(payload.new?.content ?? 'New message');
+    this.init();
+  }
+
+  async init() {
+    const requestId = this.route.snapshot.paramMap.get('requestId') ?? '';
+    const { threadId, error } = await this.chatService.getOrCreateThreadByRequest(requestId);
+
+    if (error || !threadId) {
+      this.warning = error ?? 'Unable to open chat thread.';
+      return;
+    }
+
+    this.threadId = threadId;
+
+    const history = await this.chatService.listMessages(threadId);
+    if (history.error) {
+      this.warning = history.error;
+    } else {
+      this.messages = history.data;
+    }
+
+    this.channel = this.chatService.subscribeToThread(threadId, (payload: any) => {
+      if (payload.new) {
+        this.messages.push({
+          id: payload.new.id,
+          body: payload.new.body,
+          sender_id: payload.new.sender_id
+        });
+      }
     });
   }
 
   async send() {
     const userId = this.authService.currentSession?.user.id;
     const content = this.form.value.content ?? '';
-    if (!userId || !content) return;
+    if (!userId || !content || !this.threadId) return;
 
-    const error = await this.chatService.sendMessage(this.chatId, userId, content);
+    const error = await this.chatService.sendMessage(this.threadId, userId, content);
     this.warning = error ?? '';
-
     if (!error) this.form.reset();
   }
 
