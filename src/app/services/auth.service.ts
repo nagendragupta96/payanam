@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
-import { Session } from '@supabase/supabase-js';
+import { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase-client';
 
 @Injectable({ providedIn: 'root' })
@@ -11,8 +11,11 @@ export class AuthService {
 
   constructor(private router: Router) {
     this.loadSession();
-    supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth.onAuthStateChange(async (_event, session) => {
       this.sessionSubject.next(session);
+      if (session?.user) {
+        await this.ensureProfileRecord(session.user);
+      }
     });
   }
 
@@ -23,20 +26,54 @@ export class AuthService {
   async loadSession(): Promise<void> {
     const { data } = await supabase.auth.getSession();
     this.sessionSubject.next(data.session);
+
+    if (data.session?.user) {
+      await this.ensureProfileRecord(data.session.user);
+    }
   }
 
   async signup(email: string, password: string): Promise<string | null> {
-    const { error } = await supabase.auth.signUp({ email, password });
-    return error?.message ?? null;
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return error.message;
+
+    if (data.user) {
+      const profileError = await this.ensureProfileRecord(data.user);
+      if (profileError) return profileError;
+    }
+
+    return null;
   }
 
   async login(email: string, password: string): Promise<string | null> {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error?.message ?? null;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return error.message;
+
+    if (data.user) {
+      const profileError = await this.ensureProfileRecord(data.user);
+      if (profileError) return profileError;
+    }
+
+    return null;
   }
 
   async logout(): Promise<void> {
     await supabase.auth.signOut();
     await this.router.navigate(['/']);
+  }
+
+  private async ensureProfileRecord(user: User): Promise<string | null> {
+    const payload = {
+      id: user.id,
+      email: user.email ?? null,
+      full_name: user.user_metadata?.['full_name'] ?? null,
+      home_airport: null,
+      bio: null
+    };
+
+    const { error } = await supabase
+      .from('profiles')
+      .upsert(payload, { onConflict: 'id', ignoreDuplicates: true });
+
+    return error?.message ?? null;
   }
 }
