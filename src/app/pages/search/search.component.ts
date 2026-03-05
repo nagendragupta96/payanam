@@ -13,38 +13,39 @@ import { ItineraryContactService } from '../../services/itinerary-contact.servic
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink],
   template: `
-    <h2 class="mb-3">Search itineraries</h2>
+    <h2 class="mb-3">Search Trips</h2>
 
     <form [formGroup]="form" (ngSubmit)="search()" class="card card-body mb-4">
       <div class="row g-3">
-        <div class="col-md-6">
-          <label class="form-label">Destination country/city *</label>
-          <input formControlName="destination" class="form-control" placeholder="e.g. Tokyo or Japan" />
+        <div class="col-md-6 col-lg-3">
+          <label class="form-label">Origin Airport Code *</label>
+          <input class="form-control" formControlName="originAirportCode" placeholder="e.g. DXB" />
         </div>
-
-        <div class="col-md-3">
-          <label class="form-label">Start date *</label>
-          <input type="date" formControlName="userStart" class="form-control" />
+        <div class="col-md-6 col-lg-3">
+          <label class="form-label">Destination Airport Code *</label>
+          <input class="form-control" formControlName="destinationAirportCode" placeholder="e.g. HND" />
         </div>
-
-        <div class="col-md-3">
-          <label class="form-label">End date *</label>
-          <input type="date" formControlName="userEnd" class="form-control" />
+        <div class="col-md-6 col-lg-3">
+          <label class="form-label">Start Date *</label>
+          <input type="date" class="form-control" formControlName="searchStartDate" />
         </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Airport code (optional)</label>
-          <input formControlName="airport" class="form-control" placeholder="e.g. DXB" />
+        <div class="col-md-6 col-lg-3">
+          <label class="form-label">End Date *</label>
+          <input type="date" class="form-control" formControlName="searchEndDate" />
         </div>
 
         <div class="col-md-6">
-          <label class="form-label">Flight code (optional)</label>
-          <input formControlName="flightCode" class="form-control" placeholder="e.g. EK 512" />
+          <label class="form-label">Stop1 Airport Code (optional)</label>
+          <input class="form-control" formControlName="stop1AirportCode" placeholder="Matches leg_order=1 destination" />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Stop2 Airport Code (optional)</label>
+          <input class="form-control" formControlName="stop2AirportCode" placeholder="Matches leg_order=2 destination" />
         </div>
       </div>
 
-      <div class="mt-3 d-flex gap-2">
-        <button type="submit" class="btn btn-primary" [disabled]="loadingSearch">
+      <div class="mt-3">
+        <button class="btn btn-primary" [disabled]="loadingSearch" type="submit">
           <span *ngIf="loadingSearch" class="spinner-border spinner-border-sm me-2"></span>
           Search
         </button>
@@ -58,9 +59,8 @@ import { ItineraryContactService } from '../../services/itinerary-contact.servic
       <div class="col-md-6 col-lg-4" *ngFor="let item of results">
         <div class="card h-100 shadow-sm">
           <div class="card-body">
-            <h5 class="card-title">{{ item.origin_airport }} → {{ item.destination_airport }}</h5>
-            <p class="card-text mb-1"><strong>Destination:</strong> {{ item.destination || '-' }}</p>
-            <p class="card-text mb-1"><strong>Dates:</strong> {{ item.depart_date }} → {{ item.return_date || 'One way' }}</p>
+            <h5 class="card-title">{{ item.origin_airport_code }} → {{ item.destination_airport_code }}</h5>
+            <p class="card-text mb-1"><strong>Dates:</strong> {{ item.start_date }} → {{ item.end_date || 'One way' }}</p>
             <p class="card-text"><strong>Legs:</strong> {{ item.legs.length }}</p>
             <button class="btn btn-outline-primary btn-sm" (click)="openTrip(item)">View Trip</button>
           </div>
@@ -77,19 +77,21 @@ import { ItineraryContactService } from '../../services/itinerary-contact.servic
           </div>
           <div class="modal-body">
             <div class="alert alert-danger" *ngIf="tripError">{{ tripError }}</div>
-            <p><strong>Route:</strong> {{ selectedTrip.origin_airport }} → {{ selectedTrip.destination_airport }}</p>
-            <p><strong>Destination:</strong> {{ selectedTrip.destination || '-' }}</p>
-            <p><strong>Travel:</strong> {{ selectedTrip.depart_date }} → {{ selectedTrip.return_date || 'One way' }}</p>
+            <p><strong>Route:</strong> {{ selectedTrip.origin_airport_code }} → {{ selectedTrip.destination_airport_code }}</p>
+            <p><strong>Travel:</strong> {{ selectedTrip.start_date }} → {{ selectedTrip.end_date || 'One way' }}</p>
 
             <h6>Legs</h6>
             <ul class="list-group mb-3">
               <li class="list-group-item" *ngFor="let leg of selectedTrip.legs">
-                #{{ leg.leg_order }} {{ leg.origin_airport }} → {{ leg.destination_airport }}
+                #{{ leg.leg_order }} {{ leg.origin_airport_code }} → {{ leg.destination_airport_code }}
                 ({{ leg.carrier }} {{ leg.flight_number }}{{ leg.flight_code ? ' / ' + leg.flight_code : '' }})
               </li>
             </ul>
 
-            <div *ngIf="!isLoggedIn" class="alert alert-info mb-3">Login to request this trip.</div>
+            <div *ngIf="!isLoggedIn" class="alert alert-info mb-3 d-flex justify-content-between align-items-center">
+              <span>Logged-out users can search, but cannot request/chat.</span>
+              <a class="btn btn-sm btn-primary" routerLink="/auth" (click)="closeTrip()">Login to request companion/assistance</a>
+            </div>
 
             <div *ngIf="isLoggedIn && isSelfTrip" class="alert alert-secondary mb-3">This is your trip.</div>
 
@@ -138,7 +140,7 @@ import { ItineraryContactService } from '../../services/itinerary-contact.servic
   `
 })
 export class SearchComponent {
-  message = 'Enter destination + date window to search.';
+  message = 'Use airport codes and date range to search.';
   errorMessage = '';
   results: Itinerary[] = [];
   loadingSearch = false;
@@ -149,19 +151,15 @@ export class SearchComponent {
   savingContact = false;
   canViewContactDetails = false;
 
-  contactForm: any = {
-    contact_name: '',
-    contact_phone: '',
-    contact_email: '',
-    notes: ''
-  };
+  contactForm: any = { contact_name: '', contact_phone: '', contact_email: '', notes: '' };
 
   form = this.fb.group({
-    destination: ['', Validators.required],
-    userStart: ['', Validators.required],
-    userEnd: ['', Validators.required],
-    airport: [''],
-    flightCode: ['']
+    originAirportCode: ['', Validators.required],
+    destinationAirportCode: ['', Validators.required],
+    searchStartDate: ['', Validators.required],
+    searchEndDate: ['', Validators.required],
+    stop1AirportCode: [''],
+    stop2AirportCode: ['']
   });
 
   constructor(
@@ -180,9 +178,14 @@ export class SearchComponent {
     return !!this.selectedTrip && this.selectedTrip.owner_id === this.authService.currentSession?.user.id;
   }
 
+  private normalizeAirport(code: string | null | undefined): string | undefined {
+    const value = (code ?? '').replace(/\s+/g, '').toUpperCase();
+    return value || undefined;
+  }
+
   async search() {
     if (this.form.invalid || this.loadingSearch) {
-      this.message = 'Destination, start date, and end date are required.';
+      this.message = 'Origin, destination, start date and end date are required.';
       return;
     }
 
@@ -192,18 +195,17 @@ export class SearchComponent {
     try {
       const value = this.form.getRawValue();
       const { data, error } = await this.itineraryService.search({
-        destination: value.destination ?? '',
-        userStart: value.userStart ?? '',
-        userEnd: value.userEnd ?? '',
-        airport: value.airport ?? undefined,
-        flightCode: value.flightCode ?? undefined
+        originAirportCode: this.normalizeAirport(value.originAirportCode)!,
+        destinationAirportCode: this.normalizeAirport(value.destinationAirportCode)!,
+        searchStartDate: value.searchStartDate ?? '',
+        searchEndDate: value.searchEndDate ?? '',
+        stop1AirportCode: this.normalizeAirport(value.stop1AirportCode),
+        stop2AirportCode: this.normalizeAirport(value.stop2AirportCode)
       });
 
       this.results = data;
-      if (error) {
-        this.errorMessage = error;
-      }
-      this.message = error ?? `${data.length} itinerary(ies) found. Sorted by strongest match.`;
+      if (error) this.errorMessage = error;
+      this.message = error ?? `${data.length} itinerary(ies) found.`;
     } finally {
       this.loadingSearch = false;
     }

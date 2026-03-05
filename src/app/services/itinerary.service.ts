@@ -3,11 +3,12 @@ import { supabase } from './supabase-client';
 import { FlightLeg, Itinerary } from '../models/itinerary.model';
 
 interface SearchParams {
-  destination: string;
-  userStart: string;
-  userEnd: string;
-  airport?: string;
-  flightCode?: string;
+  originAirportCode: string;
+  destinationAirportCode: string;
+  searchStartDate: string;
+  searchEndDate: string;
+  stop1AirportCode?: string;
+  stop2AirportCode?: string;
 }
 
 interface RankedItinerary {
@@ -17,38 +18,51 @@ interface RankedItinerary {
 
 @Injectable({ providedIn: 'root' })
 export class ItineraryService {
-  async createItinerary(itinerary: Itinerary, userId: string): Promise<string | null> {
+  async createItinerary(itinerary: Itinerary, userId: string): Promise<{ error: string | null; warning: string | null }> {
     const header = {
       owner_id: userId,
-      origin_airport: itinerary.origin_airport,
-      destination_airport: itinerary.destination_airport,
+      origin_airport_code: itinerary.origin_airport_code,
+      destination_airport_code: itinerary.destination_airport_code,
+      start_date: itinerary.start_date,
+      end_date: itinerary.end_date ?? itinerary.start_date,
       destination: itinerary.destination ?? null,
-      depart_date: itinerary.depart_date,
-      return_date: itinerary.return_date ?? null,
-      notes: itinerary.notes ?? null
+      notes: itinerary.notes ?? null,
+      // backward-compat writes
+      origin_airport: itinerary.origin_airport_code,
+      destination_airport: itinerary.destination_airport_code,
+      depart_date: itinerary.start_date,
+      return_date: itinerary.end_date ?? null
     };
 
     const created = await supabase.from('itineraries').insert(header).select('id').single();
-    if (created.error) return created.error.message;
+    if (created.error) {
+      return { error: `Failed to save itinerary: ${created.error.message}`, warning: null };
+    }
 
     const itineraryId = created.data.id as string;
     const legs = (itinerary.legs ?? []).map((leg, index) => ({
       itinerary_id: itineraryId,
       leg_order: index + 1,
-      origin_airport: leg.origin_airport,
-      destination_airport: leg.destination_airport,
+      origin_airport_code: leg.origin_airport_code,
+      destination_airport_code: leg.destination_airport_code,
       carrier: leg.carrier,
       flight_number: leg.flight_number,
       departure_at: leg.departure_at ?? null,
-      arrival_at: leg.arrival_at ?? null
+      arrival_at: leg.arrival_at ?? null,
+      // backward-compat writes
+      origin_airport: leg.origin_airport_code,
+      destination_airport: leg.destination_airport_code
     }));
 
     if (legs.length) {
       const { error } = await supabase.from('itinerary_legs').insert(legs);
-      if (error) return error.message;
+      if (error) {
+        return { error: `Trip header saved but failed to save legs: ${error.message}`, warning: null };
+      }
     }
 
-    return null;
+    const warning = await this.runMatchingAndNotify(itineraryId);
+    return { error: null, warning };
   }
 
   async listMyTrips(userId: string): Promise<{ data: Itinerary[]; error: string | null }> {
@@ -56,44 +70,40 @@ export class ItineraryService {
       .from('itineraries')
       .select('*')
       .eq('owner_id', userId)
-      .order('depart_date', { ascending: false });
+      .order('start_date', { ascending: false });
 
     return { data: (data as Itinerary[]) ?? [], error: error?.message ?? null };
   }
 
   async search(params: SearchParams): Promise<{ data: Itinerary[]; error: string | null }> {
-    const destination = params.destination.trim();
-    const airport = params.airport?.trim().toUpperCase();
-    const flightCode = this.normalizeFlightCode(params.flightCode ?? '');
+    const originCode = this.normalizeAirportCode(params.originAirportCode);
+    const destinationCode = this.normalizeAirportCode(params.destinationAirportCode);
+    const stop1 = this.normalizeAirportCode(params.stop1AirportCode ?? '');
+    const stop2 = this.normalizeAirportCode(params.stop2AirportCode ?? '');
 
     const { data, error } = await supabase
       .from('public_itinerary_search')
       .select('*')
-      .ilike('destination', `%${destination}%`)
-      .limit(200);
+      .eq('origin_airport_code', originCode)
+      .eq('destination_airport_code', destinationCode)
+      .lte('start_date', params.searchEndDate)
+      .gte('end_date', params.searchStartDate)
+      .limit(300);
 
     if (error) return { data: [], error: error.message };
 
     const itineraries = ((data ?? []) as any[]).map((row) => ({ ...row, legs: (row.legs ?? []) as FlightLeg[] })) as Itinerary[];
 
-    const start = this.toDateOnly(params.userStart);
-    const end = this.toDateOnly(params.userEnd);
-
-    const withOverlap = itineraries.filter((it) => {
-      const tripStart = this.toDateOnly(it.depart_date);
-      const tripEnd = this.toDateOnly(it.return_date || it.depart_date);
-      return tripStart <= end && tripEnd >= start;
+    const withStops = itineraries.filter((trip) => {
+      const legs = (trip.legs ?? []).sort((a, b) => (a.leg_order ?? 0) - (b.leg_order ?? 0));
+      if (stop1 && legs[0]?.destination_airport_code?.toUpperCase() !== stop1) return false;
+      if (stop2 && legs[1]?.destination_airport_code?.toUpperCase() !== stop2) return false;
+      return true;
     });
 
-    const ranked = withOverlap.map((itinerary) => this.rankItinerary(itinerary, airport, flightCode));
-    const filtered = ranked.filter((item) => {
-      if (flightCode) return item.score >= 3;
-      if (airport) return item.score >= 2;
-      return item.score >= 1;
-    });
-
+    const ranked = withStops.map((itinerary) => this.rankItinerary(itinerary));
     const distinct = new Map<string, RankedItinerary>();
-    for (const item of filtered) {
+    for (const item of ranked) {
       const key = item.itinerary.id!;
       const existing = distinct.get(key);
       if (!existing || item.score > existing.score) distinct.set(key, item);
@@ -121,21 +131,35 @@ export class ItineraryService {
     return { data: { ...(header.data as Itinerary), legs: (legs.data ?? []) as FlightLeg[] }, error: null };
   }
 
-  private rankItinerary(itinerary: Itinerary, airport?: string, flightCode?: string): RankedItinerary {
-    const legs = itinerary.legs ?? [];
-    const hasFlightCode = Boolean(flightCode && legs.some((l) => this.normalizeFlightCode(l.flight_code ?? '') === flightCode));
-    const hasAirport = Boolean(airport && legs.some((l) => l.origin_airport?.toUpperCase() === airport || l.destination_airport?.toUpperCase() === airport));
-
-    if (hasFlightCode) return { itinerary, score: 3 };
-    if (hasAirport) return { itinerary, score: 2 };
-    return { itinerary, score: 1 };
+  private rankItinerary(itinerary: Itinerary): RankedItinerary {
+    return { itinerary, score: (itinerary.legs ?? []).length + 1 };
   }
 
-  private toDateOnly(input: string): string {
-    return (input || '').slice(0, 10);
+  private normalizeAirportCode(input: string): string {
+    return (input || '').replace(/\s+/g, '').toUpperCase();
   }
 
-  private normalizeFlightCode(input: string): string {
-    return input.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  private async runMatchingAndNotify(itineraryId: string): Promise<string | null> {
+    const { data: matches, error: matchError } = await supabase
+      .from('public_itinerary_search')
+      .select('id')
+      .neq('id', itineraryId)
+      .limit(10);
+
+    if (matchError) {
+      return `Trip saved, but matching check failed: ${matchError.message}`;
+    }
+
+    if (!matches?.length) return null;
+
+    const { error: notifyError } = await supabase.functions.invoke('trip-match-notify', {
+      body: { itineraryId, matchIds: matches.map((m: any) => m.id) }
+    });
+
+    if (notifyError) {
+      return 'Trip saved and matches found, but notification dispatch failed.';
+    }
+
+    return null;
   }
 }

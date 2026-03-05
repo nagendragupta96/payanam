@@ -27,9 +27,9 @@ import { ItineraryService } from '../../services/itinerary.service';
             </thead>
             <tbody>
               <tr *ngFor="let trip of trips">
-                <td>{{ trip.origin_airport }} → {{ trip.destination_airport }}</td>
+                <td>{{ trip.origin_airport_code }} → {{ trip.destination_airport_code }}</td>
                 <td>{{ trip.destination || '-' }}</td>
-                <td>{{ trip.depart_date }} → {{ trip.return_date || 'One way' }}</td>
+                <td>{{ trip.start_date }} → {{ trip.end_date || 'One way' }}</td>
                 <td><a class="btn btn-sm btn-outline-primary" [routerLink]="['/itinerary', trip.id]">View</a></td>
               </tr>
             </tbody>
