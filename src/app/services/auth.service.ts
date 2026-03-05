@@ -11,9 +11,18 @@ export class AuthService {
 
   constructor(private router: Router) {
     this.loadSession();
+
     supabase.auth.onAuthStateChange(async (_event, session) => {
       this.sessionSubject.next(session);
-      if (session?.user) await this.ensureProfileRecord(session.user);
+
+      if (session?.user) {
+        await this.ensureProfileRecord(session.user);
+      } else {
+        const onProtectedRoute = this.isProtectedRoute(this.router.url);
+        if (onProtectedRoute) {
+          await this.router.navigate(['/auth']);
+        }
+      }
     });
   }
 
@@ -24,7 +33,10 @@ export class AuthService {
   async loadSession(): Promise<void> {
     const { data } = await supabase.auth.getSession();
     this.sessionSubject.next(data.session);
-    if (data.session?.user) await this.ensureProfileRecord(data.session.user);
+
+    if (data.session?.user) {
+      await this.ensureProfileRecord(data.session.user);
+    }
   }
 
   async signup(email: string, password: string): Promise<string | null> {
@@ -41,8 +53,6 @@ export class AuthService {
       return error.message;
     }
 
-    // Supabase can return no explicit error for existing confirmed users
-    // when email confirmation is enabled. Detect by empty identities list.
     if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
       return 'An account already exists with this email. Please login instead.';
     }
@@ -53,13 +63,26 @@ export class AuthService {
   async login(email: string, password: string): Promise<string | null> {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
-    if (data.user) return this.ensureProfileRecord(data.user);
+
+    this.sessionSubject.next(data.session);
+
+    if (data.user) {
+      const profileError = await this.ensureProfileRecord(data.user);
+      if (profileError) return profileError;
+    }
+
     return null;
   }
 
   async logout(): Promise<void> {
     await supabase.auth.signOut();
-    await this.router.navigate(['/']);
+    this.sessionSubject.next(null);
+    await this.router.navigate(['/home']);
+  }
+
+  private isProtectedRoute(path: string): boolean {
+    const protectedPrefixes = ['/profile', '/create-itinerary', '/my-trips', '/requests', '/messages', '/chat', '/settings'];
+    return protectedPrefixes.some((prefix) => path.startsWith(prefix));
   }
 
   private isExistingEmailError(message: string): boolean {

@@ -1,9 +1,16 @@
 import { Injectable } from '@angular/core';
 import { supabase } from './supabase-client';
 
+export type RequestType = 'COMPANION' | 'ASSISTANCE';
+
 @Injectable({ providedIn: 'root' })
 export class RequestService {
-  async createRequest(itineraryId: string, requesterId: string, message: string | null = null): Promise<string | null> {
+  async createRequest(
+    itineraryId: string,
+    requesterId: string,
+    requestType: RequestType,
+    message: string | null = null
+  ): Promise<string | null> {
     const itinerary = await supabase
       .from('itineraries')
       .select('owner_id')
@@ -16,6 +23,7 @@ export class RequestService {
       itinerary_id: itineraryId,
       requester_id: requesterId,
       owner_id: itinerary.data.owner_id,
+      request_type: requestType,
       status: 'PENDING',
       message
     });
@@ -41,5 +49,22 @@ export class RequestService {
       outgoing: outgoing.data ?? [],
       error: incoming.error?.message || outgoing.error?.message || null
     };
+  }
+
+  async acceptRequest(requestId: string): Promise<{ threadId: string | null; error: string | null }> {
+    const { data, error } = await supabase.rpc('accept_request_and_create_thread', { p_request_id: requestId });
+    return { threadId: (data as string) ?? null, error: error?.message ?? null };
+  }
+
+  async getUserRequestForItinerary(itineraryId: string, userId: string) {
+    const { data, error } = await supabase
+      .from('requests')
+      .select('id, status, owner_id, requester_id')
+      .eq('itinerary_id', itineraryId)
+      .eq('requester_id', userId)
+      .order('created_at', { ascending: false })
+      .maybeSingle();
+
+    return { data, error: error?.message ?? null };
   }
 }

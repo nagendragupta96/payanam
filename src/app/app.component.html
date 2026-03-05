@@ -1,24 +1,30 @@
 <div class="app-shell min-vh-100">
-  <nav class="navbar navbar-expand-lg bg-white border-bottom shadow-sm">
+  <nav class="navbar navbar-expand-lg bg-white border-bottom shadow-sm sticky-top">
     <div class="container">
-      <a routerLink="/home" class="navbar-brand fw-semibold">Payanam</a>
+      <a routerLink="/home" class="navbar-brand fw-semibold" (click)="closeNav()">Payanam</a>
 
-      <div class="d-flex flex-wrap gap-2 align-items-center">
-        <a routerLink="/home" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="btn btn-sm btn-outline-primary">Home</a>
-        <a routerLink="/search" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Search</a>
+      <button class="navbar-toggler" type="button" (click)="isNavOpen = !isNavOpen">
+        <span class="navbar-toggler-icon"></span>
+      </button>
 
-        @if (!isLoggedIn) {
-          <a routerLink="/auth" routerLinkActive="active" class="btn btn-sm btn-primary">Login</a>
-        }
+      <div class="collapse navbar-collapse" [class.show]="isNavOpen">
+        <div class="d-flex flex-column flex-lg-row gap-2 ms-lg-auto py-2 py-lg-0">
+          <a routerLink="/home" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Home</a>
+          <a routerLink="/search" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Search</a>
 
-        @if (isLoggedIn) {
-          <a routerLink="/create-itinerary" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Post Trip</a>
-          <a routerLink="/my-trips" routerLinkActive="active" class="btn btn-sm btn-outline-primary">My Trips</a>
-          <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Requests</a>
-          <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Messages</a>
-          <a routerLink="/profile" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Profile</a>
-          <button type="button" class="btn btn-sm btn-danger" (click)="authService.logout()">Logout</button>
-        }
+          @if (!isLoggedIn) {
+            <a routerLink="/auth" routerLinkActive="active" class="btn btn-sm btn-primary" (click)="closeNav()">Login</a>
+          }
+
+          @if (isLoggedIn) {
+            <a routerLink="/create-itinerary" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Post Trip</a>
+            <a routerLink="/my-trips" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">My Trips</a>
+            <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Requests</a>
+            <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Messages</a>
+            <a routerLink="/profile" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Profile</a>
+            <button type="button" class="btn btn-sm btn-danger" (click)="authService.logout(); closeNav()">Logout</button>
+          }
+        </div>
       </div>
     </div>
   </nav>

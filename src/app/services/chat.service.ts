@@ -16,34 +16,14 @@ export class ChatService {
     return { safe: true };
   }
 
-  async getOrCreateThreadByRequest(requestId: string): Promise<{ threadId: string | null; error: string | null }> {
-    const existing = await supabase.from('chat_threads').select('id').eq('request_id', requestId).maybeSingle();
-    if (existing.error) return { threadId: null, error: existing.error.message };
-    if (existing.data?.id) return { threadId: existing.data.id, error: null };
-
-    const request = await supabase
-      .from('requests')
-      .select('id, itinerary_id, owner_id, requester_id, status')
-      .eq('id', requestId)
-      .single();
-
-    if (request.error) return { threadId: null, error: request.error.message };
-    if (request.data.status !== 'ACCEPTED') {
-      return { threadId: null, error: 'Chat is available only for accepted requests.' };
-    }
-
-    const created = await supabase
+  async getThreadByRequest(requestId: string): Promise<{ data: any | null; error: string | null }> {
+    const { data, error } = await supabase
       .from('chat_threads')
-      .insert({
-        request_id: request.data.id,
-        itinerary_id: request.data.itinerary_id,
-        owner_id: request.data.owner_id,
-        requester_id: request.data.requester_id
-      })
-      .select('id')
-      .single();
+      .select('*')
+      .eq('request_id', requestId)
+      .maybeSingle();
 
-    return { threadId: created.data?.id ?? null, error: created.error?.message ?? null };
+    return { data, error: error?.message ?? null };
   }
 
   async listMessages(threadId: string): Promise<{ data: { id: string; body: string; sender_id: string }[]; error: string | null }> {

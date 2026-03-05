@@ -51,7 +51,6 @@ export class ItineraryService {
     return null;
   }
 
-
   async listMyTrips(userId: string): Promise<{ data: Itinerary[]; error: string | null }> {
     const { data, error } = await supabase
       .from('itineraries')
@@ -67,48 +66,26 @@ export class ItineraryService {
     const airport = params.airport?.trim().toUpperCase();
     const flightCode = this.normalizeFlightCode(params.flightCode ?? '');
 
-    const base = await supabase
-      .from('itineraries')
+    const { data, error } = await supabase
+      .from('public_itinerary_search')
       .select('*')
       .ilike('destination', `%${destination}%`)
-      .lte('depart_date', params.userEnd)
-      .or(`return_date.gte.${params.userStart},return_date.is.null`)
       .limit(200);
 
-    if (base.error) return { data: [], error: base.error.message };
+    if (error) return { data: [], error: error.message };
 
-    const itineraries = (base.data ?? []) as Itinerary[];
-    if (!itineraries.length) return { data: [], error: null };
-
-    const ids = itineraries.map((i) => i.id).filter(Boolean) as string[];
-    const legsResult = await supabase
-      .from('itinerary_legs')
-      .select('*')
-      .in('itinerary_id', ids)
-      .order('leg_order', { ascending: true });
-
-    if (legsResult.error) return { data: [], error: legsResult.error.message };
-
-    const legsByItinerary = new Map<string, FlightLeg[]>();
-    for (const leg of (legsResult.data ?? []) as FlightLeg[]) {
-      const list = legsByItinerary.get(leg.itinerary_id!) ?? [];
-      list.push(leg);
-      legsByItinerary.set(leg.itinerary_id!, list);
-    }
+    const itineraries = ((data ?? []) as any[]).map((row) => ({ ...row, legs: (row.legs ?? []) as FlightLeg[] })) as Itinerary[];
 
     const start = this.toDateOnly(params.userStart);
     const end = this.toDateOnly(params.userEnd);
 
-    const withLegs = itineraries
-      .map((it) => ({ ...it, legs: legsByItinerary.get(it.id!) ?? [] }))
-      .filter((it) => {
-        const tripStart = this.toDateOnly(it.depart_date);
-        const tripEnd = this.toDateOnly(it.return_date || it.depart_date);
-        return tripStart <= end && tripEnd >= start;
-      });
+    const withOverlap = itineraries.filter((it) => {
+      const tripStart = this.toDateOnly(it.depart_date);
+      const tripEnd = this.toDateOnly(it.return_date || it.depart_date);
+      return tripStart <= end && tripEnd >= start;
+    });
 
-    const ranked = withLegs.map((itinerary) => this.rankItinerary(itinerary, airport, flightCode));
-
+    const ranked = withOverlap.map((itinerary) => this.rankItinerary(itinerary, airport, flightCode));
     const filtered = ranked.filter((item) => {
       if (flightCode) return item.score >= 3;
       if (airport) return item.score >= 2;

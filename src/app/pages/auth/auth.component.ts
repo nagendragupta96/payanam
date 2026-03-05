@@ -1,3 +1,4 @@
+import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -6,7 +7,7 @@ import { AuthService } from '../../services/auth.service';
 @Component({
   selector: 'app-auth',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule],
   template: `
     <div class="row justify-content-center">
       <div class="col-lg-8">
@@ -28,8 +29,12 @@ import { AuthService } from '../../services/auth.service';
             <form [formGroup]="form" (ngSubmit)="submit()">
               <input class="form-control mb-2" placeholder="Email" formControlName="email" />
               <input class="form-control mb-3" placeholder="Password" type="password" formControlName="password" />
-              <button class="btn btn-primary" type="submit">{{ mode === 'login' ? 'Login' : 'Create account' }}</button>
-              <button class="btn btn-link" type="button" (click)="toggleMode()">
+
+              <button class="btn btn-primary" [disabled]="loading" type="submit">
+                <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
+                {{ mode === 'login' ? 'Login' : 'Create account' }}
+              </button>
+              <button class="btn btn-link" [disabled]="loading" type="button" (click)="toggleMode()">
                 {{ mode === 'login' ? 'Need an account? Sign up' : 'Already have an account? Login' }}
               </button>
             </form>
@@ -44,6 +49,7 @@ export class AuthComponent {
   mode: 'login' | 'signup' = 'login';
   message = '';
   isError = false;
+  loading = false;
 
   form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -59,26 +65,32 @@ export class AuthComponent {
   }
 
   async submit() {
-    if (this.form.invalid) return;
-    const { email, password } = this.form.getRawValue();
-    const error = this.mode === 'login'
-      ? await this.authService.login(email!, password!)
-      : await this.authService.signup(email!, password!);
+    if (this.form.invalid || this.loading) return;
+    this.loading = true;
 
-    if (error) {
-      this.isError = true;
-      this.message = error;
-      return;
+    try {
+      const { email, password } = this.form.getRawValue();
+      const error = this.mode === 'login'
+        ? await this.authService.login(email!, password!)
+        : await this.authService.signup(email!, password!);
+
+      if (error) {
+        this.isError = true;
+        this.message = error;
+        return;
+      }
+
+      this.isError = false;
+
+      if (this.mode === 'login') {
+        this.message = 'Login successful.';
+        await this.router.navigate(['/home']);
+        return;
+      }
+
+      this.message = 'Signup successful. Please verify your email before login.';
+    } finally {
+      this.loading = false;
     }
-
-    this.isError = false;
-
-    if (this.mode === 'login') {
-      this.message = 'Login successful.';
-      await this.router.navigate(['/home']);
-      return;
-    }
-
-    this.message = 'Signup successful. Please verify your email before login.';
   }
 }

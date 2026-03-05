@@ -10,9 +10,15 @@ import { AuthService } from './services/auth.service';
   styleUrl: './app.component.css'
 })
 export class AppComponent {
+  isNavOpen = false;
+
   constructor(public authService: AuthService) {}
 
   get isLoggedIn(): boolean {
     return !!this.authService.currentSession;
+  }
+
+  closeNav() {
+    this.isNavOpen = false;
   }
 }

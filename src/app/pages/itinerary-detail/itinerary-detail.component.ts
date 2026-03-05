@@ -34,7 +34,7 @@ export class ItineraryDetailComponent {
       return;
     }
 
-    const error = await this.requestService.createRequest(this.itineraryId, userId);
+    const error = await this.requestService.createRequest(this.itineraryId, userId, 'COMPANION');
     this.message = error ?? 'Request sent.';
   }
 }

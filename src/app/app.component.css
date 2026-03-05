@@ -8,8 +8,7 @@
   color: #fff;
 }
 
-input,
 textarea,
-button {
-  margin: 0.4rem 0;
+input {
+  margin: 0.25rem 0;
 }

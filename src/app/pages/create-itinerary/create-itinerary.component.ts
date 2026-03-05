@@ -37,7 +37,9 @@ import { ItineraryService } from '../../services/itinerary.service';
           </div>
 
           <button class="btn btn-outline-secondary me-2" type="button" (click)="addLeg()">Add leg</button>
-          <button class="btn btn-primary" type="submit">Publish itinerary</button>
+          <button class="btn btn-primary" [disabled]="loading" type="submit">
+            <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>Publish itinerary
+          </button>
         </form>
         <p class="mt-3 mb-0">{{ message }}</p>
       </div>
@@ -46,6 +48,7 @@ import { ItineraryService } from '../../services/itinerary.service';
 })
 export class CreateItineraryComponent {
   message = '';
+  loading = false;
 
   form = this.fb.group({
     origin_airport: ['', Validators.required],
@@ -85,7 +88,9 @@ export class CreateItineraryComponent {
 
   async submit() {
     const userId = this.authService.currentSession?.user.id;
-    if (!userId || this.form.invalid) return;
+    if (!userId || this.form.invalid || this.loading) return;
+
+    this.loading = true;
 
     const value = this.form.getRawValue();
     const itinerary = {
@@ -106,11 +111,15 @@ export class CreateItineraryComponent {
       }))
     };
 
-    const error = await this.itineraryService.createItinerary(itinerary, userId);
-    this.message = error ?? 'Itinerary published.';
+    try {
+      const error = await this.itineraryService.createItinerary(itinerary, userId);
+      this.message = error ?? 'Itinerary published.';
 
-    if (!error) {
-      await this.router.navigate(['/my-trips']);
+      if (!error) {
+        await this.router.navigate(['/my-trips']);
+      }
+    } finally {
+      this.loading = false;
     }
   }
 }

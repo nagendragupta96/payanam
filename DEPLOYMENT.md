@@ -8,6 +8,7 @@
    - Redirect URL includes `/auth` route
 4. Run your project schema SQL (tables) and then run:
    - `supabase/001_auth_profiles_bootstrap.sql`
+   - `supabase/002_trip_contact_requests_chat.sql`
 
 This adds:
 - RLS policies for `profiles`
