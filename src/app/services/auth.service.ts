@@ -28,9 +28,13 @@ export class AuthService {
   }
 
   async signup(email: string, password: string): Promise<string | null> {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({ email, password });
     if (error) return error.message;
-    if (data.user) return this.ensureProfileRecord(data.user);
+
+    // Do not force profile insert at signup time because many Supabase setups
+    // require email confirmation before an authenticated session exists.
+    // In that state, RLS checks using auth.uid() will fail for insert.
+    // Profile creation is handled after login/session establishment.
     return null;
   }
 
@@ -47,6 +51,13 @@ export class AuthService {
   }
 
   private async ensureProfileRecord(user: User): Promise<string | null> {
+    const sessionUserId = this.currentSession?.user.id;
+    if (!sessionUserId || sessionUserId !== user.id) {
+      // Avoid writing profiles without an authenticated JWT for this user.
+      // This prevents false RLS errors during signup confirmation flows.
+      return null;
+    }
+
     const { error } = await supabase.from('profiles').upsert(
       {
         id: user.id,
