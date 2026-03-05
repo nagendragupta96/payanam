@@ -11,4 +11,8 @@ import { AuthService } from './services/auth.service';
 })
 export class AppComponent {
   constructor(public authService: AuthService) {}
+
+  get isLoggedIn(): boolean {
+    return !!this.authService.currentSession;
+  }
 }

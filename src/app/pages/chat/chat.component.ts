@@ -10,18 +10,23 @@ import { ChatService } from '../../services/chat.service';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   template: `
-    <h2>Chat</h2>
-    <p>Chat opens only after request acceptance.</p>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h4">Messages</h2>
+        <p class="text-muted">Chat opens only after request acceptance.</p>
 
-    <form [formGroup]="form" (ngSubmit)="send()">
-      <textarea formControlName="content" placeholder="Type your message"></textarea>
-      <button type="submit">Send</button>
-    </form>
+        <form [formGroup]="form" (ngSubmit)="send()">
+          <textarea class="form-control mb-2" rows="3" formControlName="content" placeholder="Type your message"></textarea>
+          <button class="btn btn-primary" type="submit">Send</button>
+        </form>
 
-    <p>{{ warning }}</p>
-    <ul>
-      <li *ngFor="let msg of messages">{{ msg.body }}</li>
-    </ul>
+        <p class="mt-3" [class.text-danger]="warning">{{ warning }}</p>
+
+        <ul class="list-group">
+          <li class="list-group-item" *ngFor="let msg of messages">{{ msg.body }}</li>
+        </ul>
+      </div>
+    </div>
   `
 })
 export class ChatComponent implements OnDestroy {
@@ -53,22 +58,12 @@ export class ChatComponent implements OnDestroy {
     }
 
     this.threadId = threadId;
-
     const history = await this.chatService.listMessages(threadId);
-    if (history.error) {
-      this.warning = history.error;
-    } else {
-      this.messages = history.data;
-    }
+    if (history.error) this.warning = history.error;
+    else this.messages = history.data;
 
     this.channel = this.chatService.subscribeToThread(threadId, (payload: any) => {
-      if (payload.new) {
-        this.messages.push({
-          id: payload.new.id,
-          body: payload.new.body,
-          sender_id: payload.new.sender_id
-        });
-      }
+      if (payload.new) this.messages.push({ id: payload.new.id, body: payload.new.body, sender_id: payload.new.sender_id });
     });
   }
 

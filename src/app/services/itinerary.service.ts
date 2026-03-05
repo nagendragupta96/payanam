@@ -51,6 +51,17 @@ export class ItineraryService {
     return null;
   }
 
+
+  async listMyTrips(userId: string): Promise<{ data: Itinerary[]; error: string | null }> {
+    const { data, error } = await supabase
+      .from('itineraries')
+      .select('*')
+      .eq('owner_id', userId)
+      .order('depart_date', { ascending: false });
+
+    return { data: (data as Itinerary[]) ?? [], error: error?.message ?? null };
+  }
+
   async search(params: SearchParams): Promise<{ data: Itinerary[]; error: string | null }> {
     const destination = params.destination.trim();
     const airport = params.airport?.trim().toUpperCase();
@@ -85,11 +96,15 @@ export class ItineraryService {
       legsByItinerary.set(leg.itinerary_id!, list);
     }
 
+    const start = this.toDateOnly(params.userStart);
+    const end = this.toDateOnly(params.userEnd);
+
     const withLegs = itineraries
       .map((it) => ({ ...it, legs: legsByItinerary.get(it.id!) ?? [] }))
       .filter((it) => {
-        const effectiveEnd = it.return_date || it.depart_date;
-        return effectiveEnd >= params.userStart;
+        const tripStart = this.toDateOnly(it.depart_date);
+        const tripEnd = this.toDateOnly(it.return_date || it.depart_date);
+        return tripStart <= end && tripEnd >= start;
       });
 
     const ranked = withLegs.map((itinerary) => this.rankItinerary(itinerary, airport, flightCode));
@@ -137,6 +152,10 @@ export class ItineraryService {
     if (hasFlightCode) return { itinerary, score: 3 };
     if (hasAirport) return { itinerary, score: 2 };
     return { itinerary, score: 1 };
+  }
+
+  private toDateOnly(input: string): string {
+    return (input || '').slice(0, 10);
   }
 
   private normalizeFlightCode(input: string): string {

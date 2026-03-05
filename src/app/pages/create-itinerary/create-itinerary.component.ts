@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { ItineraryService } from '../../services/itinerary.service';
 
@@ -9,30 +10,38 @@ import { ItineraryService } from '../../services/itinerary.service';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   template: `
-    <h2>Create Itinerary</h2>
-    <form [formGroup]="form" (ngSubmit)="submit()">
-      <input formControlName="origin_airport" placeholder="Origin airport" />
-      <input formControlName="destination_airport" placeholder="Destination airport" />
-      <input formControlName="destination" placeholder="Destination city/country" />
-      <input type="date" formControlName="depart_date" />
-      <input type="date" formControlName="return_date" />
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h4 mb-3">Post Trip</h2>
+        <form [formGroup]="form" (ngSubmit)="submit()">
+          <input class="form-control mb-2" formControlName="origin_airport" placeholder="Origin airport" />
+          <input class="form-control mb-2" formControlName="destination_airport" placeholder="Destination airport" />
+          <input class="form-control mb-2" formControlName="destination" placeholder="Destination city/country" />
+          <div class="row g-2 mb-2">
+            <div class="col-md-6"><input class="form-control" type="date" formControlName="depart_date" /></div>
+            <div class="col-md-6"><input class="form-control" type="date" formControlName="return_date" /></div>
+          </div>
 
-      <div formArrayName="legs">
-        <div *ngFor="let leg of legs.controls; index as i" [formGroupName]="i">
-          <h4>Leg {{ i + 1 }}</h4>
-          <input formControlName="origin_airport" placeholder="Origin airport" />
-          <input formControlName="destination_airport" placeholder="Destination airport" />
-          <input formControlName="carrier" placeholder="Carrier" />
-          <input formControlName="flight_number" placeholder="Flight Number" />
-          <input type="datetime-local" formControlName="departure_at" />
-          <input type="datetime-local" formControlName="arrival_at" />
-        </div>
+          <div formArrayName="legs">
+            <div *ngFor="let leg of legs.controls; index as i" [formGroupName]="i" class="border rounded p-3 mb-2 bg-light">
+              <h6>Leg {{ i + 1 }}</h6>
+              <input class="form-control mb-2" formControlName="origin_airport" placeholder="Origin airport" />
+              <input class="form-control mb-2" formControlName="destination_airport" placeholder="Destination airport" />
+              <input class="form-control mb-2" formControlName="carrier" placeholder="Carrier" />
+              <input class="form-control mb-2" formControlName="flight_number" placeholder="Flight Number" />
+              <div class="row g-2">
+                <div class="col-md-6"><input class="form-control" type="datetime-local" formControlName="departure_at" /></div>
+                <div class="col-md-6"><input class="form-control" type="datetime-local" formControlName="arrival_at" /></div>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn btn-outline-secondary me-2" type="button" (click)="addLeg()">Add leg</button>
+          <button class="btn btn-primary" type="submit">Publish itinerary</button>
+        </form>
+        <p class="mt-3 mb-0">{{ message }}</p>
       </div>
-
-      <button type="button" (click)="addLeg()">Add leg</button>
-      <button type="submit">Publish itinerary</button>
-    </form>
-    <p>{{ message }}</p>
+    </div>
   `
 })
 export class CreateItineraryComponent {
@@ -55,7 +64,8 @@ export class CreateItineraryComponent {
   constructor(
     private fb: FormBuilder,
     private itineraryService: ItineraryService,
-    private authService: AuthService
+    private authService: AuthService,
+    private router: Router
   ) {}
 
   createLegGroup() {
@@ -98,5 +108,9 @@ export class CreateItineraryComponent {
 
     const error = await this.itineraryService.createItinerary(itinerary, userId);
     this.message = error ?? 'Itinerary published.';
+
+    if (!error) {
+      await this.router.navigate(['/my-trips']);
+    }
   }
 }

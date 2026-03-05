@@ -7,10 +7,14 @@ import { RequestService } from '../../services/request.service';
   selector: 'app-itinerary-detail',
   standalone: true,
   template: `
-    <h2>Itinerary Detail</h2>
-    <p>Itinerary ID: {{ itineraryId }}</p>
-    <button (click)="send()">Send Request</button>
-    <p>{{ message }}</p>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h4">Trip Detail</h2>
+        <p class="text-muted">Itinerary ID: {{ itineraryId }}</p>
+        <button class="btn btn-primary" (click)="send()">Send Request</button>
+        <p class="mt-3 mb-0">{{ message }}</p>
+      </div>
+    </div>
   `
 })
 export class ItineraryDetailComponent {

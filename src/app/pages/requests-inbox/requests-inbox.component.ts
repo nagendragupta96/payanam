@@ -8,16 +8,26 @@ import { RequestService } from '../../services/request.service';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <h2>Requests Inbox</h2>
-    <button (click)="load()">Refresh</button>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h4 mb-0">Requests & Messages</h2>
+          <button class="btn btn-outline-primary btn-sm" (click)="load()">Refresh</button>
+        </div>
 
-    <h3>Incoming</h3>
-    <ul><li *ngFor="let req of incoming">{{ req.status }} - {{ req.message || 'No message' }}</li></ul>
+        <h3 class="h6">Incoming</h3>
+        <ul class="list-group mb-3">
+          <li class="list-group-item" *ngFor="let req of incoming">{{ req.status }} - {{ req.message || 'No message' }}</li>
+        </ul>
 
-    <h3>Outgoing</h3>
-    <ul><li *ngFor="let req of outgoing">{{ req.status }} - {{ req.message || 'No message' }}</li></ul>
+        <h3 class="h6">Outgoing</h3>
+        <ul class="list-group mb-0">
+          <li class="list-group-item" *ngFor="let req of outgoing">{{ req.status }} - {{ req.message || 'No message' }}</li>
+        </ul>
 
-    <p>{{ message }}</p>
+        <p class="mt-3 mb-0">{{ message }}</p>
+      </div>
+    </div>
   `
 })
 export class RequestsInboxComponent {
@@ -25,7 +35,9 @@ export class RequestsInboxComponent {
   outgoing: any[] = [];
   message = '';
 
-  constructor(private authService: AuthService, private requestService: RequestService) {}
+  constructor(private authService: AuthService, private requestService: RequestService) {
+    this.load();
+  }
 
   async load() {
     const userId = this.authService.currentSession?.user.id;

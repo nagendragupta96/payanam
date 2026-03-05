@@ -28,17 +28,25 @@ export class AuthService {
   }
 
   async signup(email: string, password: string): Promise<string | null> {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: `${window.location.origin}/auth` }
     });
-    if (error) return error.message;
 
-    // Do not force profile insert at signup time because many Supabase setups
-    // require email confirmation before an authenticated session exists.
-    // In that state, RLS checks using auth.uid() will fail for insert.
-    // Profile creation is handled after login/session establishment.
+    if (error) {
+      if (this.isExistingEmailError(error.message)) {
+        return 'An account already exists with this email. Please login instead.';
+      }
+      return error.message;
+    }
+
+    // Supabase can return no explicit error for existing confirmed users
+    // when email confirmation is enabled. Detect by empty identities list.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      return 'An account already exists with this email. Please login instead.';
+    }
+
     return null;
   }
 
@@ -54,11 +62,14 @@ export class AuthService {
     await this.router.navigate(['/']);
   }
 
+  private isExistingEmailError(message: string): boolean {
+    const text = message.toLowerCase();
+    return text.includes('already registered') || text.includes('already been registered') || text.includes('user already registered');
+  }
+
   private async ensureProfileRecord(user: User): Promise<string | null> {
     const sessionUserId = this.currentSession?.user.id;
     if (!sessionUserId || sessionUserId !== user.id) {
-      // Avoid writing profiles without an authenticated JWT for this user.
-      // This prevents false RLS errors during signup confirmation flows.
       return null;
     }
 

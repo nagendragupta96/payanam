@@ -9,15 +9,19 @@ import { ItineraryDetailComponent } from './pages/itinerary-detail/itinerary-det
 import { RequestsInboxComponent } from './pages/requests-inbox/requests-inbox.component';
 import { ChatComponent } from './pages/chat/chat.component';
 import { SettingsComponent } from './pages/settings/settings.component';
+import { MyTripsComponent } from './pages/my-trips/my-trips.component';
 
 export const routes: Routes = [
   { path: '', component: LandingComponent },
+  { path: 'home', component: LandingComponent },
   { path: 'auth', component: AuthComponent },
   { path: 'profile', component: ProfileComponent, canActivate: [authGuard] },
   { path: 'create-itinerary', component: CreateItineraryComponent, canActivate: [authGuard] },
+  { path: 'my-trips', component: MyTripsComponent, canActivate: [authGuard] },
   { path: 'search', component: SearchComponent },
   { path: 'itinerary/:id', component: ItineraryDetailComponent },
   { path: 'requests', component: RequestsInboxComponent, canActivate: [authGuard] },
+  { path: 'messages/:requestId', component: ChatComponent, canActivate: [authGuard] },
   { path: 'chat/:requestId', component: ChatComponent, canActivate: [authGuard] },
   { path: 'settings', component: SettingsComponent, canActivate: [authGuard] },
   { path: '**', redirectTo: '' }

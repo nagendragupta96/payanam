@@ -1,19 +1,22 @@
 <div class="app-shell min-vh-100">
-  <nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom shadow-sm">
-    <div class="container-fluid">
-      <a routerLink="/" class="navbar-brand fw-semibold">Payanam</a>
+  <nav class="navbar navbar-expand-lg bg-white border-bottom shadow-sm">
+    <div class="container">
+      <a routerLink="/home" class="navbar-brand fw-semibold">Payanam</a>
 
       <div class="d-flex flex-wrap gap-2 align-items-center">
-        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="btn btn-sm btn-outline-primary">Home</a>
+        <a routerLink="/home" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="btn btn-sm btn-outline-primary">Home</a>
         <a routerLink="/search" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Search</a>
-        <a routerLink="/create-itinerary" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Post Trip</a>
-        <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Requests</a>
-        <a routerLink="/chat/demo" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Chat</a>
-        <a routerLink="/profile" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Profile</a>
-        <a routerLink="/settings" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Settings</a>
-        <a routerLink="/auth" routerLinkActive="active" class="btn btn-sm btn-primary">Auth</a>
 
-        @if (authService.currentSession) {
+        @if (!isLoggedIn) {
+          <a routerLink="/auth" routerLinkActive="active" class="btn btn-sm btn-primary">Login</a>
+        }
+
+        @if (isLoggedIn) {
+          <a routerLink="/create-itinerary" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Post Trip</a>
+          <a routerLink="/my-trips" routerLinkActive="active" class="btn btn-sm btn-outline-primary">My Trips</a>
+          <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Requests</a>
+          <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Messages</a>
+          <a routerLink="/profile" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Profile</a>
           <button type="button" class="btn btn-sm btn-danger" (click)="authService.logout()">Logout</button>
         }
       </div>
