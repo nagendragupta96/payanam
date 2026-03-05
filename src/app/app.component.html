@@ -1,0 +1,29 @@
+<div class="app-shell min-vh-100">
+  <nav class="navbar navbar-expand-lg bg-white border-bottom shadow-sm">
+    <div class="container">
+      <a routerLink="/home" class="navbar-brand fw-semibold">Payanam</a>
+
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <a routerLink="/home" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="btn btn-sm btn-outline-primary">Home</a>
+        <a routerLink="/search" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Search</a>
+
+        @if (!isLoggedIn) {
+          <a routerLink="/auth" routerLinkActive="active" class="btn btn-sm btn-primary">Login</a>
+        }
+
+        @if (isLoggedIn) {
+          <a routerLink="/create-itinerary" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Post Trip</a>
+          <a routerLink="/my-trips" routerLinkActive="active" class="btn btn-sm btn-outline-primary">My Trips</a>
+          <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Requests</a>
+          <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Messages</a>
+          <a routerLink="/profile" routerLinkActive="active" class="btn btn-sm btn-outline-primary">Profile</a>
+          <button type="button" class="btn btn-sm btn-danger" (click)="authService.logout()">Logout</button>
+        }
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <router-outlet></router-outlet>
+  </main>
+</div>
