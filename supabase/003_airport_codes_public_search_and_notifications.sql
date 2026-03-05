@@ -27,6 +27,52 @@ where true;
 create index if not exists itineraries_origin_dest_dates_idx
   on public.itineraries (origin_airport_code, destination_airport_code, start_date, end_date);
 
+
+-- If `public_itinerary_search` already exists with legacy column names,
+-- rename columns first so CREATE OR REPLACE can succeed without 42P16.
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'public_itinerary_search'
+      and column_name = 'origin_airport'
+  ) then
+    execute 'alter view public.public_itinerary_search rename column origin_airport to origin_airport_code';
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'public_itinerary_search'
+      and column_name = 'destination_airport'
+  ) then
+    execute 'alter view public.public_itinerary_search rename column destination_airport to destination_airport_code';
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'public_itinerary_search'
+      and column_name = 'depart_date'
+  ) then
+    execute 'alter view public.public_itinerary_search rename column depart_date to start_date';
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'public_itinerary_search'
+      and column_name = 'return_date'
+  ) then
+    execute 'alter view public.public_itinerary_search rename column return_date to end_date';
+  end if;
+end $$;
+
 create or replace view public.public_itinerary_search as
 select
   i.id,
