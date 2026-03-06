@@ -33,7 +33,7 @@ export class AuthService {
   }
 
   getUserLabel(profile: any, fallbackEmail?: string): string {
-    return profile?.full_name || profile?.display_name || fallbackEmail || 'User';
+    return profile?.display_name || fallbackEmail || 'User';
   }
 
   async loadSession(): Promise<void> {
@@ -84,13 +84,17 @@ export class AuthService {
       return error.message;
     }
 
-    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-      return 'An account already exists with this email. Please login instead.';
+    if (!data.user) {
+      return 'Signup failed while creating your profile. Please try again.';
     }
 
-    if (data.user) {
-      const profileError = await this.ensureProfileRecord(data.user, name);
-      if (profileError) return profileError;
+    // NOTE: client-side code cannot atomically roll back auth.users creation if a later
+    // profile operation fails. We therefore rely on DB trigger provisioning and verify it here.
+    const verifyError = await this.verifySignupProvisioning(data.user.id);
+    if (verifyError) {
+      await supabase.auth.signOut();
+      this.sessionSubject.next(null);
+      return verifyError;
     }
 
     return null;
@@ -116,6 +120,35 @@ export class AuthService {
     await this.router.navigate(['/auth']);
   }
 
+  private async verifySignupProvisioning(userId: string): Promise<string | null> {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      await this.loadSession();
+      const sessionUserId = this.currentSession?.user.id;
+      if (sessionUserId !== userId) {
+        await this.wait(250);
+        continue;
+      }
+
+      const profile = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profile.data?.id) {
+        return null;
+      }
+
+      await this.wait(250);
+    }
+
+    return 'Signup failed while creating your profile. Please try again.';
+  }
+
+  private wait(ms: number): Promise<void> {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
   private async handleSignedOutState(): Promise<void> {
     const onProtectedRoute = this.isProtectedRoute(this.router.url);
     if (onProtectedRoute) {
@@ -133,17 +166,17 @@ export class AuthService {
     return text.includes('already registered') || text.includes('already been registered') || text.includes('user already registered');
   }
 
-  private async ensureProfileRecord(user: User, preferredName?: string): Promise<string | null> {
+  private async ensureProfileRecord(user: User): Promise<string | null> {
     const sessionUserId = this.currentSession?.user.id ?? user.id;
     if (!sessionUserId || sessionUserId !== user.id) {
       return null;
     }
 
-    const fullName = preferredName || user.user_metadata?.['full_name'] || user.user_metadata?.['display_name'] || user.email || null;
+    const displayName = user.user_metadata?.['display_name'] || user.email || null;
     const { error } = await supabase.from('profiles').upsert(
       {
         id: user.id,
-        display_name: user.user_metadata?.['display_name'] ?? fullName,
+        display_name: displayName,
         avatar_url: user.user_metadata?.['avatar_url'] ?? null
       },
       { onConflict: 'id' }
