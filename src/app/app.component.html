@@ -1,0 +1,40 @@
+<div class="app-shell min-vh-100">
+  <nav class="navbar navbar-expand-lg bg-white border-bottom shadow-sm sticky-top">
+    <div class="container">
+      <a routerLink="/home" class="navbar-brand fw-semibold" (click)="closeNav()">Payanam</a>
+
+      <button class="navbar-toggler" type="button" (click)="isNavOpen = !isNavOpen">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" [class.show]="isNavOpen">
+        <div class="d-flex flex-column flex-lg-row gap-2 ms-lg-auto py-2 py-lg-0">
+          <a routerLink="/home" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Home</a>
+          <a routerLink="/search" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Search</a>
+
+          @if (!isLoggedIn) {
+            <a routerLink="/auth" routerLinkActive="active" class="btn btn-sm btn-primary" (click)="closeNav()">Login</a>
+          }
+
+          @if (isLoggedIn) {
+            <a routerLink="/create-itinerary" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Post Trip</a>
+            <a routerLink="/my-trips" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">My Trips</a>
+            <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Requests</a>
+            <a routerLink="/messages" class="btn btn-sm btn-outline-primary position-relative" [class.active]="isSectionActive('/messages') || isSectionActive('/chat')" (click)="closeNav()">
+              Messages
+              @if (messageNotificationService.unreadCount > 0) {
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ messageNotificationService.unreadCount }}</span>
+              }
+            </a>
+            <a routerLink="/profile" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Profile</a>
+            <button type="button" class="btn btn-sm btn-danger" (click)="authService.logout(); closeNav()">Logout</button>
+          }
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <router-outlet></router-outlet>
+  </main>
+</div>
