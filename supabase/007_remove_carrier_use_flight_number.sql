@@ -1,13 +1,55 @@
 -- Deprecate itinerary_legs.carrier and rely on normalized flight_number/flight_code.
 
+-- Step 1: Merge legacy carrier+flight_number into a single normalized flight_number.
 update public.itinerary_legs
-set
-  flight_number = upper(regexp_replace(coalesce(flight_number, ''), '\\s+', '', 'g')),
-  flight_code = upper(regexp_replace(coalesce(flight_number, ''), '\\s+', '', 'g'))
-where flight_number is not null;
+set flight_number = upper(
+  regexp_replace(
+    coalesce(
+      case
+        when coalesce(trim(carrier), '') = '' then coalesce(flight_number, '')
+        when upper(regexp_replace(coalesce(flight_number, ''), '\\s+', '', 'g')) like upper(regexp_replace(coalesce(carrier, ''), '\\s+', '', 'g')) || '%'
+          then coalesce(flight_number, '')
+        else coalesce(carrier, '') || coalesce(flight_number, '')
+      end,
+      ''
+    ),
+    '\\s+',
+    '',
+    'g'
+  )
+)
+where carrier is not null or flight_number is not null;
 
+-- Step 2: Drop carrier with CASCADE to remove dependent objects (generated flight_code/views).
 alter table public.itinerary_legs
-  drop column if exists carrier;
+  drop column if exists carrier cascade;
+
+-- Step 3: Ensure flight_code exists and is aligned with normalized flight_number.
+do $$
+declare
+  v_is_generated text;
+begin
+  select c.is_generated
+  into v_is_generated
+  from information_schema.columns c
+  where c.table_schema = 'public'
+    and c.table_name = 'itinerary_legs'
+    and c.column_name = 'flight_code';
+
+  if v_is_generated is null then
+    execute $sql$
+      alter table public.itinerary_legs
+      add column flight_code text generated always as (
+        upper(regexp_replace(coalesce(flight_number, ''), '\\s+', '', 'g'))
+      ) stored
+    $sql$;
+  elsif v_is_generated = 'NEVER' then
+    update public.itinerary_legs
+    set flight_code = upper(regexp_replace(coalesce(flight_number, ''), '\\s+', '', 'g'))
+    where flight_number is not null;
+  end if;
+end
+$$;
 
 create or replace view public.public_itinerary_search with (security_invoker = off) as
 select
