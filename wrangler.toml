@@ -1,0 +1,8 @@
+name = "travel-companion"
+compatibility_date = "2026-03-04"
+
+[build]
+command = "npm run build"
+
+[assets]
+directory = "dist/travel-companion/browser"
