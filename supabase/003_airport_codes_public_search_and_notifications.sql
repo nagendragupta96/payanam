@@ -73,7 +73,10 @@ begin
   end if;
 end $$;
 
-create or replace view public.public_itinerary_search as
+-- Keep SECURITY INVOKER off for this public-safe projection view.
+-- Search is used by anon users and underlying itinerary tables are protected by RLS,
+-- so SECURITY INVOKER would require broad table grants/policies and break search.
+create or replace view public.public_itinerary_search with (security_invoker = off) as
 select
   i.id,
   i.owner_id,
@@ -101,6 +104,8 @@ select
 from public.itineraries i
 left join public.itinerary_legs l on l.itinerary_id = i.id
 group by i.id;
+
+alter view public.public_itinerary_search set (security_invoker = off);
 
 grant select on public.public_itinerary_search to anon, authenticated;
 
