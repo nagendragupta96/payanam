@@ -94,7 +94,7 @@ import { ChatService } from '../../services/chat.service';
               <ul class="list-group mb-3">
                 <li class="list-group-item" *ngFor="let leg of selectedTrip.legs">
                   #{{ leg.leg_order }} {{ leg.origin_airport_code }} → {{ leg.destination_airport_code }}
-                  ({{ leg.carrier }} {{ leg.flight_number }}{{ leg.flight_code ? ' / ' + leg.flight_code : '' }})
+                  ({{ leg.flight_number || '-' }})
                 </li>
               </ul>
 
@@ -108,10 +108,10 @@ import { ChatService } from '../../services/chat.service';
               <div *ngIf="isLoggedIn && !isSelfTrip" class="d-flex flex-wrap gap-2 mb-3">
                 <button class="btn btn-primary" [disabled]="requestLoading" (click)="sendRequest('COMPANION')">
                   <span *ngIf="requestLoading" class="spinner-border spinner-border-sm me-2"></span>
-                  Request Companion
+                  {{ requestButtonLabel('COMPANION') }}
                 </button>
                 <button class="btn btn-outline-primary" [disabled]="requestLoading" (click)="sendRequest('ASSISTANCE')">
-                  Request Assistance
+                  {{ requestButtonLabel('ASSISTANCE') }}
                 </button>
               </div>
 
@@ -171,6 +171,7 @@ export class SearchComponent {
 
   contactForm: any = { contact_name: '', contact_phone: '', contact_email: '', notes: '' };
   private ownerLabels: Record<string, string> = {};
+  private latestRequestByType: Partial<Record<RequestType, 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED'>> = {};
 
   form = this.fb.group({
     originAirportCode: ['', Validators.required],
@@ -252,12 +253,13 @@ export class SearchComponent {
     this.tripError = '';
     this.tripInfo = '';
     this.canViewContactDetails = false;
+    this.latestRequestByType = {};
     this.contactForm = { contact_name: '', contact_phone: '', contact_email: '', notes: '' };
 
     const { data, error } = await this.itineraryService.findById(item.id!);
     if (error || !data) {
-      this.tripError = error ?? 'Unable to load trip details.';
       this.selectedTrip = item;
+      this.tripError = ''; // Use already-loaded public card details without showing false error.
       this.loadingTripId = '';
       return;
     }
@@ -267,6 +269,7 @@ export class SearchComponent {
       const one = await this.chatService.getProfileNames([data.owner_id]);
       this.ownerLabels = { ...this.ownerLabels, ...one };
     }
+    await this.loadLatestRequestStates();
     await this.loadContactDetails();
     this.loadingTripId = '';
   }
@@ -275,6 +278,7 @@ export class SearchComponent {
     this.selectedTrip = null;
     this.tripError = '';
     this.tripInfo = '';
+    this.latestRequestByType = {};
   }
 
   async sendRequest(type: RequestType) {
@@ -334,6 +338,29 @@ export class SearchComponent {
         notes: details.data.notes ?? ''
       };
     }
+  }
+
+  private async loadLatestRequestStates() {
+    if (!this.selectedTrip) return;
+
+    const userId = this.authService.currentSession?.user.id;
+    if (!userId || this.isSelfTrip) return;
+
+    const companion = await this.requestService.getUserLatestRequestForItineraryByType(this.selectedTrip.id!, userId, 'COMPANION');
+    if (companion.data?.status) {
+      this.latestRequestByType.COMPANION = companion.data.status;
+    }
+
+    const assistance = await this.requestService.getUserLatestRequestForItineraryByType(this.selectedTrip.id!, userId, 'ASSISTANCE');
+    if (assistance.data?.status) {
+      this.latestRequestByType.ASSISTANCE = assistance.data.status;
+    }
+  }
+
+  requestButtonLabel(type: RequestType): string {
+    const status = this.latestRequestByType[type];
+    const base = type === 'COMPANION' ? 'Request Companion' : 'Request Assistance';
+    return status === 'CANCELLED' || status === 'REJECTED' ? 'Request Again' : base;
   }
 
   async saveContactDetails() {

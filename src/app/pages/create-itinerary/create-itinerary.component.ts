@@ -51,8 +51,7 @@ import { ItineraryService } from '../../services/itinerary.service';
                 <div class="col-md-6"><input class="form-control" formControlName="destination_airport_code" placeholder="Destination airport code" /></div>
               </div>
               <div class="row g-2 mt-1">
-                <div class="col-md-6"><input class="form-control" formControlName="carrier" placeholder="Carrier" /></div>
-                <div class="col-md-6"><input class="form-control" formControlName="flight_number" placeholder="Flight Number" /></div>
+                <div class="col-md-12"><input class="form-control" formControlName="flight_number" placeholder="Flight Number (e.g. QR738)" /></div>
               </div>
               <div class="row g-2 mt-1">
                 <div class="col-md-6"><input class="form-control" type="datetime-local" formControlName="departure_at" /></div>
@@ -134,7 +133,6 @@ export class CreateItineraryComponent {
     return this.fb.group({
       origin_airport_code: ['', [Validators.required, Validators.pattern(this.airportCodePattern)]],
       destination_airport_code: ['', [Validators.required, Validators.pattern(this.airportCodePattern)]],
-      carrier: ['', Validators.required],
       flight_number: ['', Validators.required],
       departure_at: [''],
       arrival_at: ['']
@@ -156,6 +154,7 @@ export class CreateItineraryComponent {
 
     const value = this.form.getRawValue();
     const normalize = (code: string | null | undefined) => (code ?? '').replace(/\s+/g, '').toUpperCase();
+    const normalizeFlightNumber = (input: string | null | undefined) => (input ?? '').replace(/\s+/g, '').toUpperCase();
 
     const itinerary = {
       origin_airport_code: normalize(value.origin_airport_code),
@@ -174,8 +173,7 @@ export class CreateItineraryComponent {
         leg_order: index + 1,
         origin_airport_code: normalize(leg.origin_airport_code),
         destination_airport_code: normalize(leg.destination_airport_code),
-        carrier: leg.carrier ?? '',
-        flight_number: leg.flight_number ?? '',
+        flight_number: normalizeFlightNumber(leg.flight_number),
         departure_at: leg.departure_at || null,
         arrival_at: leg.arrival_at || null
       }))

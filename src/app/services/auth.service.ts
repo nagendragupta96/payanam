@@ -10,8 +10,6 @@ export class AuthService {
   private readonly sessionSubject = new BehaviorSubject<Session | null>(null);
   readonly session$ = this.sessionSubject.asObservable();
   private sessionCheckInFlight: Promise<void> | null = null;
-  private readonly sessionRefreshIntervalMs = 30000;
-  private readonly sessionTimeoutMs = 8000;
 
   constructor(private router: Router) {
     void this.loadSession();
@@ -26,9 +24,6 @@ export class AuthService {
       }
     });
 
-    window.setInterval(() => {
-      void this.loadSession();
-    }, this.sessionRefreshIntervalMs);
   }
 
   get currentSession(): Session | null {
@@ -45,21 +40,23 @@ export class AuthService {
     }
 
     this.sessionCheckInFlight = (async () => {
-      let session: Session | null = null;
-
       try {
-        const { data } = await this.withTimeout(supabase.auth.getSession(), this.sessionTimeoutMs);
-        session = data.session;
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          return;
+        }
+
+        const session = data.session;
+        this.sessionSubject.next(session);
+
+        if (session?.user) {
+          await this.ensureProfileRecord(session.user);
+        } else {
+          await this.handleSignedOutState();
+        }
       } catch {
-        session = null;
-      }
-
-      this.sessionSubject.next(session);
-
-      if (session?.user) {
-        await this.ensureProfileRecord(session.user);
-      } else {
-        await this.handleSignedOutState();
+        // Do not force-logout users on transient network errors.
+        return;
       }
     })();
 
@@ -138,17 +135,21 @@ export class AuthService {
   }
 
   async login(email: string, password: string): Promise<string | null> {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return error.message;
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return error.message;
 
-    this.sessionSubject.next(data.session);
+      this.sessionSubject.next(data.session);
 
-    if (data.user) {
-      const profileError = await this.ensureProfileRecord(data.user);
-      if (profileError) return profileError;
+      if (data.user) {
+        const profileError = await this.ensureProfileRecord(data.user);
+        if (profileError) return profileError;
+      }
+
+      return null;
+    } catch {
+      return 'Login failed due to network error. Please try again.';
     }
-
-    return null;
   }
 
   async logout(): Promise<void> {
@@ -184,13 +185,6 @@ export class AuthService {
 
   private wait(ms: number): Promise<void> {
     return new Promise((resolve) => window.setTimeout(resolve, ms));
-  }
-
-  private withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-    return Promise.race([
-      promise,
-      new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error('Session check timed out')), timeoutMs))
-    ]);
   }
 
   private async handleSignedOutState(): Promise<void> {

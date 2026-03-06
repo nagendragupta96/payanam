@@ -45,8 +45,8 @@ export class ItineraryService {
       leg_order: index + 1,
       origin_airport_code: leg.origin_airport_code,
       destination_airport_code: leg.destination_airport_code,
-      carrier: leg.carrier,
       flight_number: leg.flight_number,
+      flight_code: leg.flight_number,
       departure_at: leg.departure_at ?? null,
       arrival_at: leg.arrival_at ?? null,
       // backward-compat writes

@@ -4,7 +4,6 @@ export interface FlightLeg {
   leg_order: number;
   origin_airport_code: string;
   destination_airport_code: string;
-  carrier: string;
   flight_number: string;
   flight_code?: string;
   departure_at?: string | null;

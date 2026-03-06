@@ -39,9 +39,12 @@ export class RequestService {
       return { data: null, existing: false, error: 'You cannot send a request for your own trip.' };
     }
 
-    const existing = await this.findExactRequest(itineraryId, requesterId, ownerId, requestType);
-    if (existing.data) return { data: existing.data, existing: true, error: null };
+    const existing = await this.findLatestRequestByType(itineraryId, requesterId, ownerId, requestType);
     if (existing.error) return { data: null, existing: false, error: existing.error };
+
+    if (existing.data && this.isActiveStatus(existing.data.status)) {
+      return { data: existing.data, existing: true, error: null };
+    }
 
     const inserted = await supabase
       .from('requests')
@@ -61,15 +64,15 @@ export class RequestService {
     }
 
     if (this.isUniquePairError(inserted.error)) {
-      const raced = await this.findExactRequest(itineraryId, requesterId, ownerId, requestType);
+      const raced = await this.findActiveRequest(itineraryId, requesterId, ownerId, requestType);
       if (raced.data) return { data: raced.data, existing: true, error: null };
-      return { data: null, existing: false, error: raced.error ?? 'Request already exists.' };
+      return { data: null, existing: false, error: raced.error ?? 'An active request already exists.' };
     }
 
     return { data: null, existing: false, error: inserted.error?.message ?? 'Unable to create request.' };
   }
 
-  async findExactRequest(itineraryId: string, requesterId: string, ownerId: string, requestType: RequestType) {
+  async findLatestRequestByType(itineraryId: string, requesterId: string, ownerId: string, requestType: RequestType) {
     const { data, error } = await supabase
       .from('requests')
       .select('*')
@@ -77,6 +80,22 @@ export class RequestService {
       .eq('requester_id', requesterId)
       .eq('owner_id', ownerId)
       .eq('request_type', requestType)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return { data: (data as RequestRecord) ?? null, error: error?.message ?? null };
+  }
+
+  async findActiveRequest(itineraryId: string, requesterId: string, ownerId: string, requestType: RequestType) {
+    const { data, error } = await supabase
+      .from('requests')
+      .select('*')
+      .eq('itinerary_id', itineraryId)
+      .eq('requester_id', requesterId)
+      .eq('owner_id', ownerId)
+      .eq('request_type', requestType)
+      .in('status', ['PENDING', 'ACCEPTED'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -151,6 +170,24 @@ export class RequestService {
       .maybeSingle();
 
     return { data, error: error?.message ?? null };
+  }
+
+  async getUserLatestRequestForItineraryByType(itineraryId: string, userId: string, requestType: RequestType) {
+    const { data, error } = await supabase
+      .from('requests')
+      .select('id, status, owner_id, requester_id, request_type')
+      .eq('itinerary_id', itineraryId)
+      .eq('requester_id', userId)
+      .eq('request_type', requestType)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return { data: (data as RequestRecord | null) ?? null, error: error?.message ?? null };
+  }
+
+  private isActiveStatus(status: RequestRecord['status']): boolean {
+    return status === 'PENDING' || status === 'ACCEPTED';
   }
 
   private isUniquePairError(error: PostgrestError | null): boolean {
