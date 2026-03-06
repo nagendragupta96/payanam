@@ -18,9 +18,15 @@ This adds:
 - trigger `on_auth_user_created` to auto-create `profiles` row from `auth.users`
 
 ## 2) Configure Angular environment
-Update `src/environments/environment.ts`:
+Update both environment files:
+- `src/environments/environment.ts` (local/dev)
+- `src/environments/environment.prod.ts` (production)
+
+Set:
 - `supabaseUrl`
 - `supabaseAnonKey`
+
+If these remain placeholders, auth calls may fail in the browser with `Failed to fetch` and no user/profile row will be created.
 
 ## 3) Build locally
 ```bash

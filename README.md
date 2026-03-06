@@ -2,6 +2,15 @@
 
 This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 17.3.17.
 
+## Supabase configuration (required)
+
+Before signup/login can work, replace placeholders in:
+
+- `src/environments/environment.ts`
+- `src/environments/environment.prod.ts`
+
+Set valid values for `supabaseUrl` and `supabaseAnonKey` from your Supabase project.
+
 ## Development server
 
 Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.

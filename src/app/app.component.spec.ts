@@ -14,16 +14,18 @@ describe('AppComponent', () => {
     expect(app).toBeTruthy();
   });
 
-  it(`should have the 'travel-companion' title`, () => {
+  it('should default currentUrl to root', () => {
     const fixture = TestBed.createComponent(AppComponent);
     const app = fixture.componentInstance;
-    expect(app.title).toEqual('travel-companion');
+    expect(app.currentUrl).toEqual('/');
   });
 
-  it('should render title', () => {
+  it('should report section activity using prefix matching', () => {
     const fixture = TestBed.createComponent(AppComponent);
-    fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, travel-companion');
+    const app = fixture.componentInstance;
+
+    app.currentUrl = '/chat/123';
+    expect(app.isSectionActive('/chat')).toBeTrue();
+    expect(app.isSectionActive('/messages')).toBeFalse();
   });
 });

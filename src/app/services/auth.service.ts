@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from './supabase-client';
+import { supabase, supabaseConfigIssue } from './supabase-client';
 import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
@@ -67,18 +67,36 @@ export class AuthService {
     const name = displayName.trim();
     if (!name) return 'Display Name is required.';
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: environment.emailRedirectUrl,
-        data: {
-          display_name: name
+    if (supabaseConfigIssue) {
+      return supabaseConfigIssue;
+    }
+
+    let data: { user: User | null; session: Session | null };
+    let error: { message: string; status?: number } | null;
+
+    try {
+      const response = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: environment.emailRedirectUrl,
+          data: {
+            display_name: name
+          }
         }
-      }
-    });
+      });
+
+      data = response.data;
+      error = response.error;
+    } catch {
+      return 'Unable to reach Supabase. Please verify your supabaseUrl/anon key and network access, then try again.';
+    }
 
     if (error) {
+      if (this.isNetworkFetchError(error.message)) {
+        return 'Unable to reach Supabase. Please verify your supabaseUrl/anon key and network access, then try again.';
+      }
+
       if (this.isExistingEmailError(error.message)) {
         return 'An account already exists with this email. Please login instead.';
       }
@@ -176,6 +194,11 @@ export class AuthService {
   private isExistingEmailError(message: string): boolean {
     const text = message.toLowerCase();
     return text.includes('already registered') || text.includes('already been registered') || text.includes('user already registered');
+  }
+
+  private isNetworkFetchError(message: string): boolean {
+    const text = message.toLowerCase();
+    return text.includes('failed to fetch') || text.includes('network request failed') || text.includes('fetch failed');
   }
 
   private async ensureProfileRecord(user: User): Promise<string | null> {
