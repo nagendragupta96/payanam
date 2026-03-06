@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { Location } from '@angular/common';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { RequestRecord, RequestService } from '../../services/request.service';
 
@@ -12,6 +13,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
   template: `
     <div class="card shadow-sm">
       <div class="card-body">
+        <button class="btn btn-link p-0 mb-2" type="button" (click)="goBack()">← Back to Requests</button>
         <h2 class="h4 mb-3">Request Details</h2>
 
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
@@ -32,7 +34,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
             <textarea rows="3" class="form-control mb-2" formControlName="message" placeholder="Add note to request"></textarea>
             <button class="btn btn-primary btn-sm" [disabled]="savingMessage">
               <span *ngIf="savingMessage" class="spinner-border spinner-border-sm me-2"></span>
-              Save Message
+              Save Request
             </button>
           </form>
 
@@ -61,6 +63,8 @@ export class RequestDetailComponent {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
+    private location: Location,
     private fb: FormBuilder,
     private authService: AuthService,
     private requestService: RequestService
@@ -110,11 +114,22 @@ export class RequestDetailComponent {
         this.errorMessage = error;
         return;
       }
-      this.infoMessage = 'Request message updated.';
-      await this.load();
+
+      await this.router.navigate(['/requests'], {
+        queryParams: { info: 'Request saved successfully.' }
+      });
     } finally {
       this.savingMessage = false;
     }
+  }
+
+  async goBack() {
+    if (window.history.length > 1) {
+      this.location.back();
+      return;
+    }
+
+    await this.router.navigate(['/requests']);
   }
 
   async cancelRequest() {

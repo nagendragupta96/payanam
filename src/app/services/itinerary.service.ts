@@ -61,8 +61,33 @@ export class ItineraryService {
       }
     }
 
-    const warning = await this.runMatchingAndNotify(itineraryId);
-    return { error: null, warning };
+    const contactDetails = itinerary.contact_details;
+    const hasContactDetails = !!(
+      contactDetails?.contact_name?.trim() ||
+      contactDetails?.contact_phone?.trim() ||
+      contactDetails?.contact_email?.trim() ||
+      contactDetails?.notes?.trim()
+    );
+
+    if (hasContactDetails) {
+      const { error } = await supabase.from('itinerary_contact_details').upsert(
+        {
+          itinerary_id: itineraryId,
+          owner_id: userId,
+          contact_name: contactDetails?.contact_name?.trim() || null,
+          contact_phone: contactDetails?.contact_phone?.trim() || null,
+          contact_email: contactDetails?.contact_email?.trim() || null,
+          notes: contactDetails?.notes?.trim() || null
+        },
+        { onConflict: 'itinerary_id' }
+      );
+
+      if (error) {
+        return { error: `Trip saved, but contact details failed to save: ${error.message}`, warning: null };
+      }
+    }
+
+    return { error: null, warning: null };
   }
 
   async listMyTrips(userId: string): Promise<{ data: Itinerary[]; error: string | null }> {
@@ -139,27 +164,4 @@ export class ItineraryService {
     return (input || '').replace(/\s+/g, '').toUpperCase();
   }
 
-  private async runMatchingAndNotify(itineraryId: string): Promise<string | null> {
-    const { data: matches, error: matchError } = await supabase
-      .from('public_itinerary_search')
-      .select('id')
-      .neq('id', itineraryId)
-      .limit(10);
-
-    if (matchError) {
-      return `Trip saved, but matching check failed: ${matchError.message}`;
-    }
-
-    if (!matches?.length) return null;
-
-    const { error: notifyError } = await supabase.functions.invoke('trip-match-notify', {
-      body: { itineraryId, matchIds: matches.map((m: any) => m.id) }
-    });
-
-    if (notifyError) {
-      return 'Trip saved and matches found, but notification dispatch failed.';
-    }
-
-    return null;
-  }
 }

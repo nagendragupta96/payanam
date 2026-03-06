@@ -2,10 +2,19 @@
   background: radial-gradient(circle at top right, #f1f7ff 0%, #fcfdff 40%, #f7fbff 100%);
 }
 
-.btn.active {
+.nav-link {
+  border-radius: 0.5rem;
+  color: var(--bs-primary);
+  font-weight: 500;
+}
+
+.nav-link.active {
   background-color: var(--bs-primary);
-  border-color: var(--bs-primary);
   color: #fff;
+}
+
+.brand-icon {
+  font-size: 1.2rem;
 }
 
 textarea,

@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { ChatService } from '../../services/chat.service';
 import { RequestRecord, RequestService } from '../../services/request.service';
@@ -84,8 +84,13 @@ export class RequestsInboxComponent {
     private authService: AuthService,
     private requestService: RequestService,
     private chatService: ChatService,
+    private route: ActivatedRoute,
     private router: Router
   ) {
+    this.route.queryParamMap.subscribe((params) => {
+      this.infoMessage = params.get('info') ?? '';
+    });
+
     void this.load();
   }
 

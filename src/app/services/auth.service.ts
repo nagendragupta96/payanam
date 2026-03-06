@@ -10,6 +10,8 @@ export class AuthService {
   private readonly sessionSubject = new BehaviorSubject<Session | null>(null);
   readonly session$ = this.sessionSubject.asObservable();
   private sessionCheckInFlight: Promise<void> | null = null;
+  private readonly sessionRefreshIntervalMs = 30000;
+  private readonly sessionTimeoutMs = 8000;
 
   constructor(private router: Router) {
     void this.loadSession();
@@ -26,7 +28,7 @@ export class AuthService {
 
     window.setInterval(() => {
       void this.loadSession();
-    }, 60000);
+    }, this.sessionRefreshIntervalMs);
   }
 
   get currentSession(): Session | null {
@@ -43,16 +45,21 @@ export class AuthService {
     }
 
     this.sessionCheckInFlight = (async () => {
-      const { data } = await supabase.auth.getSession();
-      this.sessionSubject.next(data.session);
+      let session: Session | null = null;
 
-      if (data.session?.user) {
-        await this.ensureProfileRecord(data.session.user);
+      try {
+        const { data } = await this.withTimeout(supabase.auth.getSession(), this.sessionTimeoutMs);
+        session = data.session;
+      } catch {
+        session = null;
+      }
+
+      this.sessionSubject.next(session);
+
+      if (session?.user) {
+        await this.ensureProfileRecord(session.user);
       } else {
-        const onProtectedRoute = this.isProtectedRoute(this.router.url);
-        if (onProtectedRoute) {
-          await this.router.navigate(['/auth']);
-        }
+        await this.handleSignedOutState();
       }
     })();
 
@@ -177,6 +184,13 @@ export class AuthService {
 
   private wait(ms: number): Promise<void> {
     return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error('Session check timed out')), timeoutMs))
+    ]);
   }
 
   private async handleSignedOutState(): Promise<void> {

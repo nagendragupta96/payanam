@@ -28,7 +28,7 @@ export class AppComponent implements OnDestroy {
         if (event.url.startsWith('/requests') || event.url.startsWith('/messages') || event.url.startsWith('/chat')) {
           this.messageNotificationService.clearUnread();
         }
-        await this.authService.loadSession();
+        void this.authService.loadSession();
       }
 
       if (event instanceof NavigationEnd) {

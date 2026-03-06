@@ -20,6 +20,12 @@ export interface Itinerary {
   start_date: string;
   end_date?: string | null;
   notes?: string | null;
+  contact_details?: {
+    contact_name?: string | null;
+    contact_phone?: string | null;
+    contact_email?: string | null;
+    notes?: string | null;
+  } | null;
   created_at?: string;
   updated_at?: string;
   legs: FlightLeg[];

@@ -15,6 +15,7 @@ import { ItineraryService } from '../../services/itinerary.service';
         <h2 class="h4 mb-3">Post Trip</h2>
 
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
+        <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
         <div class="alert alert-warning" *ngIf="warningMessage">{{ warningMessage }}</div>
 
         <form [formGroup]="form" (ngSubmit)="submit()">
@@ -60,8 +61,34 @@ import { ItineraryService } from '../../services/itinerary.service';
             </div>
           </div>
 
-          <button class="btn btn-outline-secondary me-2" type="button" (click)="addLeg()" [disabled]="loading">Add leg</button>
-          <button class="btn btn-primary" [disabled]="loading" type="submit">
+          <div class="card border-0 bg-light mt-3">
+            <div class="card-body">
+              <h3 class="h6 mb-3">Contact Details (Optional)</h3>
+              <p class="small text-muted mb-3">These details are attached to this trip and can be shared per request access rules.</p>
+
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label">Contact Name</label>
+                  <input class="form-control" formControlName="contact_name" placeholder="Name" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Contact Phone</label>
+                  <input class="form-control" formControlName="contact_phone" placeholder="Phone" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Contact Email</label>
+                  <input class="form-control" formControlName="contact_email" placeholder="Email" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Notes</label>
+                  <input class="form-control" formControlName="contact_notes" placeholder="Optional notes" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn btn-outline-secondary me-2 mt-3" type="button" (click)="addLeg()" [disabled]="loading">Add leg</button>
+          <button class="btn btn-primary mt-3" [disabled]="loading" type="submit">
             <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
             Publish itinerary
           </button>
@@ -73,6 +100,7 @@ import { ItineraryService } from '../../services/itinerary.service';
 export class CreateItineraryComponent {
   loading = false;
   errorMessage = '';
+  infoMessage = '';
   warningMessage = '';
 
   private readonly airportCodePattern = /^[A-Z]{3,4}$/;
@@ -84,6 +112,10 @@ export class CreateItineraryComponent {
     start_date: ['', Validators.required],
     end_date: ['', Validators.required],
     notes: [''],
+    contact_name: [''],
+    contact_phone: [''],
+    contact_email: [''],
+    contact_notes: [''],
     legs: this.fb.array([this.createLegGroup()])
   });
 
@@ -119,6 +151,7 @@ export class CreateItineraryComponent {
 
     this.loading = true;
     this.errorMessage = '';
+    this.infoMessage = '';
     this.warningMessage = '';
 
     const value = this.form.getRawValue();
@@ -131,6 +164,12 @@ export class CreateItineraryComponent {
       start_date: value.start_date ?? '',
       end_date: value.end_date ?? value.start_date ?? '',
       notes: value.notes ?? null,
+      contact_details: {
+        contact_name: value.contact_name ?? null,
+        contact_phone: value.contact_phone ?? null,
+        contact_email: value.contact_email ?? null,
+        notes: value.contact_notes ?? null
+      },
       legs: (value.legs ?? []).map((leg, index) => ({
         leg_order: index + 1,
         origin_airport_code: normalize(leg.origin_airport_code),
@@ -152,6 +191,8 @@ export class CreateItineraryComponent {
       if (result.warning) {
         this.warningMessage = result.warning;
       }
+
+      this.infoMessage = 'Trip saved successfully.';
 
       await this.router.navigate(['/my-trips']);
     } finally {
