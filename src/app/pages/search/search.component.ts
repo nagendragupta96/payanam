@@ -305,25 +305,30 @@ export class SearchComponent {
     this.latestRequestByType = {};
     this.contactForm = { contact_name: '', contact_phone: '', contact_email: '', notes: '' };
 
-    const { data, error } = await this.itineraryService.findById(item.id!);
-    if (error || !data) {
-      this.selectedTrip = item;
-      this.tripError = ''; // Use already-loaded public card details without showing false error.
-      this.loadingTripId = '';
-      return;
-    }
+    try {
+      const { data, error } = await this.itineraryService.findById(item.id!);
+      if (error || !data) {
+        this.selectedTrip = item;
+        this.tripError = ''; // Use already-loaded public card details without showing false error.
+        return;
+      }
 
-    this.selectedTrip = {
-      ...data,
-      has_contact_details: data.has_contact_details ?? item.has_contact_details ?? false
-    };
-    if (data.owner_id && !this.ownerLabels[data.owner_id]) {
-      const one = await this.chatService.getProfileNames([data.owner_id]);
-      this.ownerLabels = { ...this.ownerLabels, ...one };
+      this.selectedTrip = {
+        ...data,
+        has_contact_details: data.has_contact_details ?? item.has_contact_details ?? false
+      };
+      if (data.owner_id && !this.ownerLabels[data.owner_id]) {
+        const one = await this.chatService.getProfileNames([data.owner_id]);
+        this.ownerLabels = { ...this.ownerLabels, ...one };
+      }
+      await this.loadLatestRequestStates();
+      await this.loadContactDetails();
+    } catch {
+      this.selectedTrip = item;
+      this.tripError = 'Unable to load full trip details right now.';
+    } finally {
+      this.loadingTripId = '';
     }
-    await this.loadLatestRequestStates();
-    await this.loadContactDetails();
-    this.loadingTripId = '';
   }
 
   closeTrip() {

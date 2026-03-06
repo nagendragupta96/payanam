@@ -15,6 +15,7 @@ export class AppComponent implements OnDestroy {
   isNavOpen = false;
   private readonly subscription: Subscription;
   currentUrl = '/';
+  private recoveringState = false;
 
   constructor(
     public authService: AuthService,
@@ -28,7 +29,6 @@ export class AppComponent implements OnDestroy {
         if (event.url.startsWith('/requests') || event.url.startsWith('/messages') || event.url.startsWith('/chat')) {
           this.messageNotificationService.clearUnread();
         }
-        void this.authService.loadSession();
       }
 
       if (event instanceof NavigationEnd) {
@@ -59,18 +59,31 @@ export class AppComponent implements OnDestroy {
   };
 
   private onWindowFocus = () => {
-    this.recoverAppState();
+    void this.recoverAppState();
   };
 
   private onVisibilityChange = () => {
     if (!document.hidden) {
-      this.recoverAppState();
+      void this.recoverAppState();
     }
   };
 
-  private recoverAppState() {
-    void this.authService.loadSession();
-    this.clearStaleOverlays();
+  private async recoverAppState() {
+    if (this.recoveringState) return;
+
+    this.recoveringState = true;
+    const startedAt = Date.now();
+
+    try {
+      await this.authService.refreshSessionIfNeeded();
+    } finally {
+      this.clearStaleOverlays();
+      const elapsed = Date.now() - startedAt;
+      if (elapsed > 3000) {
+        console.warn(`App state recovery took ${elapsed}ms`);
+      }
+      this.recoveringState = false;
+    }
   }
 
   private clearStaleOverlays() {

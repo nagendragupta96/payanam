@@ -18,8 +18,11 @@ interface RankedItinerary {
 
 @Injectable({ providedIn: 'root' })
 export class ItineraryService {
+  private readonly queryTimeoutMs = 12000;
+
   async createItinerary(itinerary: Itinerary, userId: string): Promise<{ error: string | null; warning: string | null }> {
     try {
+      let warning: string | null = null;
       const header = {
       owner_id: userId,
       origin_airport_code: itinerary.origin_airport_code,
@@ -35,7 +38,7 @@ export class ItineraryService {
       return_date: itinerary.end_date ?? null
     };
 
-      const created = await supabase.from('itineraries').insert(header).select('id').single();
+      const created: any = await this.withTimeout(Promise.resolve(supabase.from('itineraries').insert(header).select('id').single()));
       if (created.error) {
         return { error: `Failed to save itinerary: ${created.error.message}`, warning: null };
       }
@@ -55,7 +58,7 @@ export class ItineraryService {
     }));
 
       if (legs.length) {
-        const { error } = await supabase.from('itinerary_legs').insert(legs);
+        const { error } = (await this.withTimeout(Promise.resolve(supabase.from('itinerary_legs').insert(legs)))) as any;
         if (error) {
           return { error: `Trip header saved but failed to save legs: ${error.message}`, warning: null };
         }
@@ -70,27 +73,38 @@ export class ItineraryService {
     );
 
       if (hasContactDetails) {
-        const { error } = await supabase.from('itinerary_contact_details').upsert(
-        {
-          itinerary_id: itineraryId,
-          owner_id: userId,
-          contact_name: contactDetails?.contact_name?.trim() || null,
-          contact_phone: contactDetails?.contact_phone?.trim() || null,
-          contact_email: contactDetails?.contact_email?.trim() || null,
-          notes: contactDetails?.notes?.trim() || null
-        },
-        { onConflict: 'itinerary_id' }
-      );
+        const contactUpsert = supabase.from('itinerary_contact_details').upsert(
+          {
+            itinerary_id: itineraryId,
+            owner_id: userId,
+            contact_name: contactDetails?.contact_name?.trim() || null,
+            contact_phone: contactDetails?.contact_phone?.trim() || null,
+            contact_email: contactDetails?.contact_email?.trim() || null,
+            notes: contactDetails?.notes?.trim() || null
+          },
+          { onConflict: 'itinerary_id' }
+        );
+        const { error } = (await this.withTimeout(Promise.resolve(contactUpsert))) as any;
 
         if (error) {
-          return { error: `Trip saved, but contact details failed to save: ${error.message}`, warning: null };
+          warning = `Trip saved, but contact details failed to save: ${error.message}`;
         }
       }
 
-      return { error: null, warning: null };
-    } catch {
+      return { error: null, warning };
+    } catch (error: any) {
+      if (error?.message === 'timeout') {
+        return { error: 'Saving itinerary timed out. Please try again.', warning: null };
+      }
       return { error: 'Unexpected error while saving itinerary. Please try again.', warning: null };
     }
+  }
+
+  private withTimeout<T>(promise: PromiseLike<T>, timeoutMs = this.queryTimeoutMs): Promise<T> {
+    return Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error('timeout')), timeoutMs))
+    ]);
   }
 
   async listMyTrips(userId: string): Promise<{ data: Itinerary[]; error: string | null }> {

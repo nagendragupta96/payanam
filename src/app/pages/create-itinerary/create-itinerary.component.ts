@@ -46,11 +46,19 @@ import { ItineraryService } from '../../services/itinerary.service';
           <h3 class="h6 mt-3 mb-2">Itinerary Legs</h3>
           <p class="small text-muted mb-2">Add one or more flight legs for this trip.</p>
 
-          <button class="btn btn-outline-secondary mb-3" type="button" (click)="addLeg()" [disabled]="loading">Add Leg</button>
-
           <div formArrayName="legs">
             <div *ngFor="let leg of legs.controls; index as i" [formGroupName]="i" class="border rounded p-3 mb-2 bg-light">
-              <h6>Leg {{ i + 1 }}</h6>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0">Leg {{ i + 1 }}</h6>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-danger"
+                  (click)="removeLeg(i)"
+                  [disabled]="loading || legs.length === 1"
+                >
+                  Delete
+                </button>
+              </div>
               <div class="row g-2">
                 <div class="col-md-6"><input class="form-control" formControlName="origin_airport_code" placeholder="Origin airport code" /></div>
                 <div class="col-md-6"><input class="form-control" formControlName="destination_airport_code" placeholder="Destination airport code" /></div>
@@ -64,6 +72,8 @@ import { ItineraryService } from '../../services/itinerary.service';
               </div>
             </div>
           </div>
+
+          <button class="btn btn-primary mb-3" type="button" (click)="addLeg()" [disabled]="loading">Add Leg</button>
 
           <div class="card border-0 bg-light mt-3">
             <div class="card-body">
@@ -146,6 +156,11 @@ export class CreateItineraryComponent {
 
   addLeg() {
     this.legs.push(this.createLegGroup());
+  }
+
+  removeLeg(index: number) {
+    if (this.loading || this.legs.length <= 1) return;
+    this.legs.removeAt(index);
   }
 
   async submit() {

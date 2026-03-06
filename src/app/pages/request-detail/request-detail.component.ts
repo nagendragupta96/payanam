@@ -43,7 +43,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
               <span *ngIf="cancelling" class="spinner-border spinner-border-sm me-2"></span>
               Cancel Request
             </button>
-            <a *ngIf="request.status === 'ACCEPTED'" class="btn btn-outline-primary btn-sm" [routerLink]="['/messages']">Open Messages</a>
+            <a *ngIf="request.status === 'ACCEPTED' && request.request_type !== 'CONTACT_DETAILS'" class="btn btn-outline-primary btn-sm" [routerLink]="['/messages']">Open Messages</a>
           </div>
         </div>
       </div>

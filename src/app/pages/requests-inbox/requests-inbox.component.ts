@@ -45,7 +45,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
                   Reject
                 </button>
                 <button class="btn btn-sm btn-outline-primary" (click)="openRequest(req.id)">Details</button>
-                <button class="btn btn-sm btn-outline-primary" *ngIf="req.status === 'ACCEPTED'" (click)="openMessages(req.id)">Messages</button>
+                <button class="btn btn-sm btn-outline-primary" *ngIf="req.status === 'ACCEPTED' && req.request_type !== 'CONTACT_DETAILS'" (click)="openMessages(req.id)">Messages</button>
               </div>
             </div>
           </li>
@@ -65,7 +65,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
               </div>
               <div class="d-flex gap-2">
                 <button class="btn btn-sm btn-outline-primary" (click)="openRequest(req.id)">Details</button>
-                <button class="btn btn-sm btn-outline-primary" *ngIf="req.status === 'ACCEPTED'" (click)="openMessages(req.id)">Messages</button>
+                <button class="btn btn-sm btn-outline-primary" *ngIf="req.status === 'ACCEPTED' && req.request_type !== 'CONTACT_DETAILS'" (click)="openMessages(req.id)">Messages</button>
               </div>
             </div>
           </li>
@@ -147,7 +147,9 @@ export class RequestsInboxComponent {
         this.errorMessage = error;
         return;
       }
-      this.infoMessage = 'Request accepted.';
+      this.infoMessage = this.findRequestType(requestId) === 'CONTACT_DETAILS'
+        ? 'Contact details request accepted.'
+        : 'Request accepted.';
       await this.load();
       if (threadId) {
         await this.router.navigate(['/messages', threadId]);
@@ -191,5 +193,9 @@ export class RequestsInboxComponent {
 
   async openRequest(requestId: string) {
     await this.router.navigate(['/requests', requestId]);
+  }
+
+  private findRequestType(requestId: string): RequestRecord['request_type'] | null {
+    return this.incoming.find((req) => req.id === requestId)?.request_type ?? null;
   }
 }

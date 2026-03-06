@@ -156,6 +156,20 @@ export class RequestService {
   }
 
   async acceptRequest(requestId: string): Promise<{ threadId: string | null; error: string | null }> {
+    const request = await supabase.from('requests').select('id, request_type').eq('id', requestId).maybeSingle();
+    if (request.error || !request.data) {
+      return { threadId: null, error: request.error?.message ?? 'Request not found.' };
+    }
+
+    if ((request.data as RequestRecord).request_type === 'CONTACT_DETAILS') {
+      const { error } = await supabase
+        .from('requests')
+        .update({ status: 'ACCEPTED', updated_at: new Date().toISOString() })
+        .eq('id', requestId)
+        .eq('status', 'PENDING');
+      return { threadId: null, error: error?.message ?? null };
+    }
+
     const { data, error } = await supabase.rpc('accept_request_and_create_thread', { p_request_id: requestId });
     return { threadId: (data as string) ?? null, error: error?.message ?? null };
   }

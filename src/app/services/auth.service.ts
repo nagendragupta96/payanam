@@ -11,12 +11,14 @@ export class AuthService {
   readonly session$ = this.sessionSubject.asObservable();
   private sessionCheckInFlight: Promise<void> | null = null;
   private readonly sessionTimeoutMs = 8000;
+  private lastSessionRefreshAt = 0;
+  private readonly minSessionRefreshGapMs = 4000;
 
   constructor(private router: Router) {
     void this.loadSession();
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
-      this.sessionSubject.next(session);
+      this.setSession(session);
 
       if (session?.user) {
         await this.ensureProfileRecord(session.user);
@@ -29,6 +31,16 @@ export class AuthService {
 
   get currentSession(): Session | null {
     return this.sessionSubject.value;
+  }
+
+  async refreshSessionIfNeeded(force = false): Promise<void> {
+    const now = Date.now();
+    if (!force && now - this.lastSessionRefreshAt < this.minSessionRefreshGapMs) {
+      return;
+    }
+
+    this.lastSessionRefreshAt = now;
+    await this.loadSession();
   }
 
   getUserLabel(profile: any, fallbackEmail?: string): string {
@@ -48,7 +60,7 @@ export class AuthService {
         }
 
         const session = data.session;
-        this.sessionSubject.next(session);
+        this.setSession(session);
 
         if (session?.user) {
           await this.ensureProfileRecord(session.user);
@@ -127,7 +139,7 @@ export class AuthService {
       const verifyError = await this.verifySignupProvisioning(data.user.id);
       if (verifyError) {
         await supabase.auth.signOut();
-        this.sessionSubject.next(null);
+        this.setSession(null);
         return verifyError;
       }
     }
@@ -140,7 +152,7 @@ export class AuthService {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return error.message;
 
-      this.sessionSubject.next(data.session);
+      this.setSession(data.session);
 
       if (data.user) {
         const profileError = await this.ensureProfileRecord(data.user);
@@ -193,7 +205,7 @@ export class AuthService {
 
   async logout(): Promise<void> {
     await supabase.auth.signOut();
-    this.sessionSubject.next(null);
+    this.setSession(null);
     await this.router.navigate(['/auth']);
   }
 
@@ -282,5 +294,16 @@ export class AuthService {
     );
 
     return error?.message ?? null;
+  }
+
+  private setSession(session: Session | null): void {
+    const current = this.sessionSubject.value;
+    const sameUser = current?.user.id === session?.user.id;
+    const sameAccessToken = current?.access_token === session?.access_token;
+    if (sameUser && sameAccessToken) {
+      return;
+    }
+
+    this.sessionSubject.next(session);
   }
 }
