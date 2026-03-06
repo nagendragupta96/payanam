@@ -20,10 +20,8 @@ export class AppComponent implements OnDestroy {
     public messageNotificationService: MessageNotificationService,
     private router: Router
   ) {
-    this.subscription = this.router.events.subscribe(async (event) => {
+    this.subscription = this.router.events.subscribe((event) => {
       if (event instanceof NavigationStart) {
-        await this.authService.loadSession();
-
         if (event.url.startsWith('/requests') || event.url.startsWith('/messages') || event.url.startsWith('/chat')) {
           this.messageNotificationService.clearUnread();
         }

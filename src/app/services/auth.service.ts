@@ -8,9 +8,10 @@ import { supabase } from './supabase-client';
 export class AuthService {
   private readonly sessionSubject = new BehaviorSubject<Session | null>(null);
   readonly session$ = this.sessionSubject.asObservable();
+  private sessionCheckInFlight: Promise<void> | null = null;
 
   constructor(private router: Router) {
-    this.loadSession();
+    void this.loadSession();
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
       this.sessionSubject.next(session);
@@ -23,7 +24,7 @@ export class AuthService {
     });
 
     window.setInterval(() => {
-      this.loadSession();
+      void this.loadSession();
     }, 60000);
   }
 
@@ -32,16 +33,28 @@ export class AuthService {
   }
 
   async loadSession(): Promise<void> {
-    const { data } = await supabase.auth.getSession();
-    this.sessionSubject.next(data.session);
+    if (this.sessionCheckInFlight) {
+      return this.sessionCheckInFlight;
+    }
 
-    if (data.session?.user) {
-      await this.ensureProfileRecord(data.session.user);
-    } else {
-      const onProtectedRoute = this.isProtectedRoute(this.router.url);
-      if (onProtectedRoute) {
-        await this.router.navigate(['/auth']);
+    this.sessionCheckInFlight = (async () => {
+      const { data } = await supabase.auth.getSession();
+      this.sessionSubject.next(data.session);
+
+      if (data.session?.user) {
+        await this.ensureProfileRecord(data.session.user);
+      } else {
+        const onProtectedRoute = this.isProtectedRoute(this.router.url);
+        if (onProtectedRoute) {
+          await this.router.navigate(['/auth']);
+        }
       }
+    })();
+
+    try {
+      await this.sessionCheckInFlight;
+    } finally {
+      this.sessionCheckInFlight = null;
     }
   }
 
