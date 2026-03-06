@@ -60,6 +60,11 @@ select
   i.destination,
   coalesce(i.start_date, i.depart_date) as start_date,
   coalesce(i.end_date, i.return_date, i.depart_date) as end_date,
+  exists (
+    select 1
+    from public.itinerary_contact_details icd
+    where icd.itinerary_id = i.id
+  ) as has_contact_details,
   i.created_at,
   coalesce(
     json_agg(

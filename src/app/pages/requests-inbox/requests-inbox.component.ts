@@ -29,7 +29,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
             <div class="d-flex justify-content-between gap-2 flex-wrap align-items-start">
               <div>
                 <div class="fw-semibold">Request received from {{ userLabel(req.requester_id) }}</div>
-                <div class="small text-muted">{{ req.request_type }} • {{ req.status }}</div>
+                <div class="small text-muted">{{ requestTypeLabel(req.request_type) }} • {{ req.status }}</div>
                 <div class="small">
                   {{ req.itineraries?.origin_airport_code || '-' }} → {{ req.itineraries?.destination_airport_code || '-' }}
                   ({{ req.itineraries?.start_date || '-' }} → {{ req.itineraries?.end_date || '-' }})
@@ -39,6 +39,10 @@ import { RequestRecord, RequestService } from '../../services/request.service';
                 <button class="btn btn-sm btn-success" *ngIf="req.status === 'PENDING'" [disabled]="acceptingId === req.id" (click)="accept(req.id)">
                   <span *ngIf="acceptingId === req.id" class="spinner-border spinner-border-sm me-1"></span>
                   Accept
+                </button>
+                <button class="btn btn-sm btn-outline-danger" *ngIf="req.status === 'PENDING'" [disabled]="rejectingId === req.id" (click)="reject(req.id)">
+                  <span *ngIf="rejectingId === req.id" class="spinner-border spinner-border-sm me-1"></span>
+                  Reject
                 </button>
                 <button class="btn btn-sm btn-outline-primary" (click)="openRequest(req.id)">Details</button>
                 <button class="btn btn-sm btn-outline-primary" *ngIf="req.status === 'ACCEPTED'" (click)="openMessages(req.id)">Messages</button>
@@ -53,7 +57,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
             <div class="d-flex justify-content-between gap-2 flex-wrap align-items-start">
               <div>
                 <div class="fw-semibold">Request sent to {{ userLabel(req.owner_id) }}</div>
-                <div class="small text-muted">{{ req.request_type }} • {{ req.status }}</div>
+                <div class="small text-muted">{{ requestTypeLabel(req.request_type) }} • {{ req.status }}</div>
                 <div class="small">
                   {{ req.itineraries?.origin_airport_code || '-' }} → {{ req.itineraries?.destination_airport_code || '-' }}
                   ({{ req.itineraries?.start_date || '-' }} → {{ req.itineraries?.end_date || '-' }})
@@ -75,6 +79,7 @@ export class RequestsInboxComponent {
   outgoing: RequestRecord[] = [];
   loading = false;
   acceptingId = '';
+  rejectingId = '';
   errorMessage = '';
   infoMessage = '';
 
@@ -96,6 +101,12 @@ export class RequestsInboxComponent {
 
   userLabel(id: string): string {
     return this.labels[id] || 'User';
+  }
+
+  requestTypeLabel(type: RequestRecord['request_type']): string {
+    if (type === 'CONTACT_DETAILS') return 'Contact Details';
+    if (type === 'ASSISTANCE') return 'Assistance';
+    return 'Companion';
   }
 
   async load() {
@@ -143,6 +154,29 @@ export class RequestsInboxComponent {
       }
     } finally {
       this.acceptingId = '';
+    }
+  }
+
+  async reject(requestId: string) {
+    if (!requestId) return;
+    const ownerId = this.authService.currentSession?.user.id;
+    if (!ownerId) return;
+
+    this.rejectingId = requestId;
+    this.errorMessage = '';
+    this.infoMessage = '';
+
+    try {
+      const error = await this.requestService.updateRequestStatus(requestId, ownerId, 'REJECTED');
+      if (error) {
+        this.errorMessage = error;
+        return;
+      }
+
+      this.infoMessage = 'Request rejected.';
+      await this.load();
+    } finally {
+      this.rejectingId = '';
     }
   }
 

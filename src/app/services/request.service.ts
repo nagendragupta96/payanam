@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from './supabase-client';
 
-export type RequestType = 'COMPANION' | 'ASSISTANCE';
+export type RequestType = 'COMPANION' | 'ASSISTANCE' | 'CONTACT_DETAILS';
 
 export interface RequestRecord {
   id: string;
@@ -172,6 +172,17 @@ export class RequestService {
     return { data, error: error?.message ?? null };
   }
 
+  async updateRequestStatus(requestId: string, ownerId: string, status: 'REJECTED' | 'CANCELLED'): Promise<string | null> {
+    const { error } = await supabase
+      .from('requests')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', requestId)
+      .eq('owner_id', ownerId)
+      .eq('status', 'PENDING');
+
+    return error?.message ?? null;
+  }
+
   async getUserLatestRequestForItineraryByType(itineraryId: string, userId: string, requestType: RequestType) {
     const { data, error } = await supabase
       .from('requests')
@@ -192,6 +203,6 @@ export class RequestService {
 
   private isUniquePairError(error: PostgrestError | null): boolean {
     if (!error) return false;
-    return error.message.includes('requests_unique_pair') || error.code === '23505';
+    return error.message.includes('requests_unique_pair') || error.message.includes('requests_active_unique_idx') || error.code === '23505';
   }
 }

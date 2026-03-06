@@ -23,7 +23,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
 
         <div *ngIf="!loading && request">
           <p class="mb-1"><strong>Status:</strong> {{ request.status }}</p>
-          <p class="mb-1"><strong>Type:</strong> {{ request.request_type }}</p>
+          <p class="mb-1"><strong>Type:</strong> {{ requestTypeLabel(request.request_type) }}</p>
           <p class="mb-3"><strong>Route:</strong>
             {{ request.itineraries?.origin_airport_code || '-' }} → {{ request.itineraries?.destination_airport_code || '-' }}
             ({{ request.itineraries?.start_date || '-' }} → {{ request.itineraries?.end_date || '-' }})
@@ -74,6 +74,12 @@ export class RequestDetailComponent {
 
   get isRequester(): boolean {
     return !!this.request && this.request.requester_id === this.authService.currentSession?.user.id;
+  }
+
+  requestTypeLabel(type: RequestRecord['request_type']): string {
+    if (type === 'CONTACT_DETAILS') return 'Contact Details';
+    if (type === 'ASSISTANCE') return 'Assistance';
+    return 'Companion';
   }
 
   async load() {

@@ -11,6 +11,7 @@ import { supabase } from '../../services/supabase-client';
 interface ThreadView extends ChatThread {
   otherUserId: string;
   otherUserLabel: string;
+  otherUserDisplay: string;
   lastMessage?: ChatMessage;
   unreadCount: number;
 }
@@ -40,7 +41,7 @@ interface ThreadView extends ChatThread {
                   (click)="selectThread(thread.id)">
                   <div class="d-flex justify-content-between align-items-start">
                     <div>
-                      <div class="fw-semibold">{{ thread.otherUserLabel }}</div>
+                      <div class="fw-semibold">{{ thread.otherUserDisplay }}</div>
                       <div class="small text-muted text-truncate" style="max-width: 220px;">
                         {{ thread.lastMessage?.body || 'No messages yet' }}
                       </div>
@@ -57,6 +58,8 @@ interface ThreadView extends ChatThread {
               <div *ngIf="!selectedThreadId" class="text-muted">Select a conversation to view messages.</div>
 
               <ng-container *ngIf="selectedThreadId">
+                <div class="fw-semibold mb-2">{{ selectedConversationTitle }}</div>
+
                 <div class="chat-list d-flex flex-column gap-2 mb-3" style="min-height: 280px; max-height: 50vh; overflow:auto;">
                   <div *ngFor="let msg of messages" class="d-flex" [class.justify-content-end]="msg.sender_id === currentUserId">
                     <div class="chat-bubble p-2 rounded" [class.self]="msg.sender_id === currentUserId" [class.other]="msg.sender_id !== currentUserId">
@@ -140,10 +143,12 @@ export class ChatComponent implements OnDestroy {
     this.threadViews = threadsResult.data
       .map((thread) => {
         const otherUserId = thread.owner_id === userId ? thread.requester_id : thread.owner_id;
+        const otherUserLabel = this.senderLabels[otherUserId] || 'User';
         return {
           ...thread,
           otherUserId,
-          otherUserLabel: this.senderLabels[otherUserId] || 'User',
+          otherUserLabel,
+          otherUserDisplay: `${otherUserLabel} (${this.formatRequestType(thread.request_type)})`,
           lastMessage: lastByThread[thread.id],
           unreadCount: 0
         };
@@ -261,6 +266,18 @@ export class ChatComponent implements OnDestroy {
       const bd = b.lastMessage?.created_at || b.created_at || '';
       return bd.localeCompare(ad);
     });
+  }
+
+  get selectedConversationTitle(): string {
+    if (!this.selectedThreadId) return 'Conversation';
+    const selected = this.threadViews.find((thread) => thread.id === this.selectedThreadId);
+    return selected?.otherUserDisplay ?? 'Conversation';
+  }
+
+  private formatRequestType(type?: ChatThread['request_type']): string {
+    if (type === 'ASSISTANCE') return 'Assistance';
+    if (type === 'CONTACT_DETAILS') return 'Contact Details';
+    return 'Companion';
   }
 
   private subscribeThreadListUpdates() {

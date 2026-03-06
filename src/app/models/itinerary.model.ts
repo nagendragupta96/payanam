@@ -18,6 +18,7 @@ export interface Itinerary {
   destination?: string | null;
   start_date: string;
   end_date?: string | null;
+  has_contact_details?: boolean;
   notes?: string | null;
   contact_details?: {
     contact_name?: string | null;

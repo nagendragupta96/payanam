@@ -56,22 +56,48 @@ import { ChatService } from '../../services/chat.service';
       </div>
     </form>
 
-    <div class="row g-3" *ngIf="results.length">
-      <div class="col-md-6 col-lg-4" *ngFor="let item of results">
-        <div class="card h-100 shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">{{ item.origin_airport_code }} → {{ item.destination_airport_code }}</h5>
-            <p class="card-text mb-1"><strong>Dates:</strong> {{ item.start_date }} → {{ item.end_date || 'One way' }}</p>
-            <p class="card-text mb-1"><strong>Posted by:</strong> {{ ownerLabel(item.owner_id) }}</p>
-            <p class="card-text"><strong>Legs:</strong> {{ item.legs.length }}</p>
-            <button class="btn btn-outline-primary btn-sm" [disabled]="loadingTripId === item.id" (click)="openTrip(item)">
-              <span *ngIf="loadingTripId === item.id" class="spinner-border spinner-border-sm me-1"></span>
-              View Trip
-            </button>
-          </div>
+    <div class="card shadow-sm" *ngIf="results.length; else noResults">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover table-striped align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Origin</th>
+                <th>Destination</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Stop1</th>
+                <th>Stop2</th>
+                <th>Flight Number(s)</th>
+                <th>Posted By</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of results">
+                <td>{{ item.origin_airport_code }}</td>
+                <td>{{ item.destination_airport_code }}</td>
+                <td>{{ item.start_date }}</td>
+                <td>{{ item.end_date || 'One way' }}</td>
+                <td>{{ stopAirport(item, 0) }}</td>
+                <td>{{ stopAirport(item, 1) }}</td>
+                <td>{{ flightNumbers(item) }}</td>
+                <td>{{ ownerLabel(item.owner_id) }}</td>
+                <td>
+                  <button class="btn btn-outline-primary btn-sm" [disabled]="loadingTripId === item.id" (click)="openTrip(item)">
+                    <span *ngIf="loadingTripId === item.id" class="spinner-border spinner-border-sm me-1"></span>
+                    View
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
+    <ng-template #noResults>
+      <div class="alert alert-secondary" *ngIf="!loadingSearch">No trips found for the selected criteria. Try adjusting airport codes or dates.</div>
+    </ng-template>
 
     <ng-container *ngIf="selectedTrip">
       <div class="modal-backdrop fade show trip-modal-backdrop" (click)="closeTrip()"></div>
@@ -112,6 +138,9 @@ import { ChatService } from '../../services/chat.service';
                 </button>
                 <button class="btn btn-outline-primary" [disabled]="requestLoading" (click)="sendRequest('ASSISTANCE')">
                   {{ requestButtonLabel('ASSISTANCE') }}
+                </button>
+                <button *ngIf="hasContactDetails" class="btn btn-outline-secondary" [disabled]="requestLoading" (click)="sendRequest('CONTACT_DETAILS')">
+                  Request Contact Details
                 </button>
               </div>
 
@@ -205,6 +234,23 @@ export class SearchComponent {
     return this.ownerLabels[ownerId] || 'User';
   }
 
+  stopAirport(item: Itinerary, legIndex: number): string {
+    const legs = [...(item.legs ?? [])].sort((a, b) => (a.leg_order ?? 0) - (b.leg_order ?? 0));
+    return legs[legIndex]?.destination_airport_code || '-';
+  }
+
+  flightNumbers(item: Itinerary): string {
+    const flights = (item.legs ?? [])
+      .map((leg) => leg.flight_number)
+      .filter(Boolean)
+      .map((value) => value!.toUpperCase());
+    return flights.length ? flights.join(', ') : '-';
+  }
+
+  get hasContactDetails(): boolean {
+    return !!this.selectedTrip && !!this.selectedTrip.has_contact_details;
+  }
+
   @HostListener('document:keydown.escape')
   onEscape() {
     if (this.selectedTrip) this.closeTrip();
@@ -264,7 +310,10 @@ export class SearchComponent {
       return;
     }
 
-    this.selectedTrip = data;
+    this.selectedTrip = {
+      ...data,
+      has_contact_details: data.has_contact_details ?? item.has_contact_details ?? false
+    };
     if (data.owner_id && !this.ownerLabels[data.owner_id]) {
       const one = await this.chatService.getProfileNames([data.owner_id]);
       this.ownerLabels = { ...this.ownerLabels, ...one };
@@ -318,10 +367,14 @@ export class SearchComponent {
     if (isOwner) {
       this.canViewContactDetails = true;
     } else if (userId) {
-      const req = await this.requestService.getUserRequestForItinerary(this.selectedTrip.id!, userId);
+      const req = await this.requestService.getUserLatestRequestForItineraryByType(this.selectedTrip.id!, userId, 'CONTACT_DETAILS');
       this.canViewContactDetails = req.data?.status === 'ACCEPTED';
     } else {
       this.canViewContactDetails = false;
+    }
+
+    if (!isOwner && !this.canViewContactDetails) {
+      return;
     }
 
     const details = await this.itineraryContactService.getByItinerary(this.selectedTrip.id!);
@@ -355,12 +408,17 @@ export class SearchComponent {
     if (assistance.data?.status) {
       this.latestRequestByType.ASSISTANCE = assistance.data.status;
     }
+
+    const contact = await this.requestService.getUserLatestRequestForItineraryByType(this.selectedTrip.id!, userId, 'CONTACT_DETAILS');
+    if (contact.data?.status) {
+      this.latestRequestByType.CONTACT_DETAILS = contact.data.status;
+    }
   }
 
   requestButtonLabel(type: RequestType): string {
-    const status = this.latestRequestByType[type];
-    const base = type === 'COMPANION' ? 'Request Companion' : 'Request Assistance';
-    return status === 'CANCELLED' || status === 'REJECTED' ? 'Request Again' : base;
+    if (type === 'COMPANION') return 'Companion Request';
+    if (type === 'ASSISTANCE') return 'Assistance Request';
+    return 'Request Contact Details';
   }
 
   async saveContactDetails() {

@@ -37,6 +37,8 @@ export class AppComponent implements OnDestroy {
     });
 
     window.addEventListener('unhandledrejection', this.onUnhandledRejection);
+    window.addEventListener('focus', this.onWindowFocus);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   get isLoggedIn(): boolean {
@@ -55,8 +57,35 @@ export class AppComponent implements OnDestroy {
     console.error('Unhandled promise rejection', event.reason);
   };
 
+  private onWindowFocus = () => {
+    this.recoverAppState();
+  };
+
+  private onVisibilityChange = () => {
+    if (!document.hidden) {
+      this.recoverAppState();
+    }
+  };
+
+  private recoverAppState() {
+    void this.authService.loadSession();
+    this.clearStaleOverlays();
+  }
+
+  private clearStaleOverlays() {
+    const hasTripModal = !!document.querySelector('.trip-modal.show, .modal.show');
+    if (hasTripModal) return;
+
+    document.querySelectorAll('.modal-backdrop').forEach((node) => node.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('overflow');
+    document.body.style.removeProperty('padding-right');
+  }
+
   ngOnDestroy(): void {
     this.subscription.unsubscribe();
     window.removeEventListener('unhandledrejection', this.onUnhandledRejection);
+    window.removeEventListener('focus', this.onWindowFocus);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
   }
 }

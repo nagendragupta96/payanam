@@ -14,6 +14,7 @@ export interface ChatThread {
   owner_id: string;
   requester_id: string;
   request_id: string;
+  request_type?: 'COMPANION' | 'ASSISTANCE' | 'CONTACT_DETAILS';
   created_at?: string;
 }
 
@@ -35,21 +36,41 @@ export class ChatService {
   async listThreadsForUser(userId: string): Promise<{ data: ChatThread[]; error: string | null }> {
     const { data, error } = await supabase
       .from('chat_threads')
-      .select('id, owner_id, requester_id, request_id, created_at')
+      .select('id, owner_id, requester_id, request_id, created_at, requests(request_type)')
       .or(`owner_id.eq.${userId},requester_id.eq.${userId}`)
       .order('created_at', { ascending: false });
 
-    return { data: (data as ChatThread[]) ?? [], error: error?.message ?? null };
+    const mapped = ((data ?? []) as any[]).map((row) => ({
+      id: row.id,
+      owner_id: row.owner_id,
+      requester_id: row.requester_id,
+      request_id: row.request_id,
+      created_at: row.created_at,
+      request_type: row.requests?.request_type
+    })) as ChatThread[];
+
+    return { data: mapped, error: error?.message ?? null };
   }
 
   async getThreadByRequest(requestId: string): Promise<{ data: ChatThread | null; error: string | null }> {
     const { data, error } = await supabase
       .from('chat_threads')
-      .select('id, owner_id, requester_id, request_id, created_at')
+      .select('id, owner_id, requester_id, request_id, created_at, requests(request_type)')
       .eq('request_id', requestId)
       .maybeSingle();
 
-    return { data: (data as ChatThread) ?? null, error: error?.message ?? null };
+    const mapped = data
+      ? ({
+          id: (data as any).id,
+          owner_id: (data as any).owner_id,
+          requester_id: (data as any).requester_id,
+          request_id: (data as any).request_id,
+          created_at: (data as any).created_at,
+          request_type: (data as any).requests?.request_type
+        } as ChatThread)
+      : null;
+
+    return { data: mapped, error: error?.message ?? null };
   }
 
   async listMessages(threadId: string): Promise<{ data: ChatMessage[]; error: string | null }> {
