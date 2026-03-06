@@ -100,7 +100,7 @@ export class AuthComponent {
         return;
       }
 
-      this.infoMessage = 'Signup successful. Please verify your email before login.';
+      this.infoMessage = 'Signup successful. Please check your email to confirm your account.';
     } finally {
       this.loading = false;
     }

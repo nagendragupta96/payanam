@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase-client';
+import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -70,7 +71,7 @@ export class AuthService {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth`,
+        emailRedirectTo: environment.emailRedirectUrl,
         data: {
           display_name: name
         }
@@ -97,11 +98,15 @@ export class AuthService {
 
     // NOTE: client-side code cannot atomically roll back auth.users creation if a later
     // profile operation fails. We therefore rely on DB trigger provisioning and verify it here.
-    const verifyError = await this.verifySignupProvisioning(data.user.id);
-    if (verifyError) {
-      await supabase.auth.signOut();
-      this.sessionSubject.next(null);
-      return verifyError;
+    // For email-confirmation signup, Supabase often returns no session until the user confirms
+    // via email; in that case signup is still successful and should not be treated as a failure.
+    if (data.session?.user) {
+      const verifyError = await this.verifySignupProvisioning(data.user.id);
+      if (verifyError) {
+        await supabase.auth.signOut();
+        this.sessionSubject.next(null);
+        return verifyError;
+      }
     }
 
     return null;
