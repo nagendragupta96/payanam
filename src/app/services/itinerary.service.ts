@@ -1,0 +1,165 @@
+import { Injectable } from '@angular/core';
+import { supabase } from './supabase-client';
+import { FlightLeg, Itinerary } from '../models/itinerary.model';
+
+interface SearchParams {
+  originAirportCode: string;
+  destinationAirportCode: string;
+  searchStartDate: string;
+  searchEndDate: string;
+  stop1AirportCode?: string;
+  stop2AirportCode?: string;
+}
+
+interface RankedItinerary {
+  itinerary: Itinerary;
+  score: number;
+}
+
+@Injectable({ providedIn: 'root' })
+export class ItineraryService {
+  async createItinerary(itinerary: Itinerary, userId: string): Promise<{ error: string | null; warning: string | null }> {
+    const header = {
+      owner_id: userId,
+      origin_airport_code: itinerary.origin_airport_code,
+      destination_airport_code: itinerary.destination_airport_code,
+      start_date: itinerary.start_date,
+      end_date: itinerary.end_date ?? itinerary.start_date,
+      destination: itinerary.destination ?? null,
+      notes: itinerary.notes ?? null,
+      // backward-compat writes
+      origin_airport: itinerary.origin_airport_code,
+      destination_airport: itinerary.destination_airport_code,
+      depart_date: itinerary.start_date,
+      return_date: itinerary.end_date ?? null
+    };
+
+    const created = await supabase.from('itineraries').insert(header).select('id').single();
+    if (created.error) {
+      return { error: `Failed to save itinerary: ${created.error.message}`, warning: null };
+    }
+
+    const itineraryId = created.data.id as string;
+    const legs = (itinerary.legs ?? []).map((leg, index) => ({
+      itinerary_id: itineraryId,
+      leg_order: index + 1,
+      origin_airport_code: leg.origin_airport_code,
+      destination_airport_code: leg.destination_airport_code,
+      carrier: leg.carrier,
+      flight_number: leg.flight_number,
+      departure_at: leg.departure_at ?? null,
+      arrival_at: leg.arrival_at ?? null,
+      // backward-compat writes
+      origin_airport: leg.origin_airport_code,
+      destination_airport: leg.destination_airport_code
+    }));
+
+    if (legs.length) {
+      const { error } = await supabase.from('itinerary_legs').insert(legs);
+      if (error) {
+        return { error: `Trip header saved but failed to save legs: ${error.message}`, warning: null };
+      }
+    }
+
+    const warning = await this.runMatchingAndNotify(itineraryId);
+    return { error: null, warning };
+  }
+
+  async listMyTrips(userId: string): Promise<{ data: Itinerary[]; error: string | null }> {
+    const { data, error } = await supabase
+      .from('itineraries')
+      .select('*')
+      .eq('owner_id', userId)
+      .order('start_date', { ascending: false });
+
+    return { data: (data as Itinerary[]) ?? [], error: error?.message ?? null };
+  }
+
+  async search(params: SearchParams): Promise<{ data: Itinerary[]; error: string | null }> {
+    const originCode = this.normalizeAirportCode(params.originAirportCode);
+    const destinationCode = this.normalizeAirportCode(params.destinationAirportCode);
+    const stop1 = this.normalizeAirportCode(params.stop1AirportCode ?? '');
+    const stop2 = this.normalizeAirportCode(params.stop2AirportCode ?? '');
+
+    const { data, error } = await supabase
+      .from('public_itinerary_search')
+      .select('*')
+      .eq('origin_airport_code', originCode)
+      .eq('destination_airport_code', destinationCode)
+      .lte('start_date', params.searchEndDate)
+      .gte('end_date', params.searchStartDate)
+      .limit(300);
+
+    if (error) return { data: [], error: error.message };
+
+    const itineraries = ((data ?? []) as any[]).map((row) => ({ ...row, legs: (row.legs ?? []) as FlightLeg[] })) as Itinerary[];
+
+    const withStops = itineraries.filter((trip) => {
+      const legs = (trip.legs ?? []).sort((a, b) => (a.leg_order ?? 0) - (b.leg_order ?? 0));
+      if (stop1 && legs[0]?.destination_airport_code?.toUpperCase() !== stop1) return false;
+      if (stop2 && legs[1]?.destination_airport_code?.toUpperCase() !== stop2) return false;
+      return true;
+    });
+
+    const ranked = withStops.map((itinerary) => this.rankItinerary(itinerary));
+    const distinct = new Map<string, RankedItinerary>();
+    for (const item of ranked) {
+      const key = item.itinerary.id!;
+      const existing = distinct.get(key);
+      if (!existing || item.score > existing.score) distinct.set(key, item);
+    }
+
+    return {
+      data: [...distinct.values()].sort((a, b) => b.score - a.score).map((v) => v.itinerary),
+      error: null
+    };
+  }
+
+  async findById(id: string): Promise<{ data: Itinerary | null; error: string | null }> {
+    const header = await supabase.from('itineraries').select('*').eq('id', id).maybeSingle();
+    if (header.error) return { data: null, error: header.error.message };
+    if (!header.data) return { data: null, error: null };
+
+    const legs = await supabase
+      .from('itinerary_legs')
+      .select('*')
+      .eq('itinerary_id', id)
+      .order('leg_order', { ascending: true });
+
+    if (legs.error) return { data: null, error: legs.error.message };
+
+    return { data: { ...(header.data as Itinerary), legs: (legs.data ?? []) as FlightLeg[] }, error: null };
+  }
+
+  private rankItinerary(itinerary: Itinerary): RankedItinerary {
+    return { itinerary, score: (itinerary.legs ?? []).length + 1 };
+  }
+
+  private normalizeAirportCode(input: string): string {
+    return (input || '').replace(/\s+/g, '').toUpperCase();
+  }
+
+  private async runMatchingAndNotify(itineraryId: string): Promise<string | null> {
+    const { data: matches, error: matchError } = await supabase
+      .from('public_itinerary_search')
+      .select('id')
+      .neq('id', itineraryId)
+      .limit(10);
+
+    if (matchError) {
+      return `Trip saved, but matching check failed: ${matchError.message}`;
+    }
+
+    if (!matches?.length) return null;
+
+    const { error: notifyError } = await supabase.functions.invoke('trip-match-notify', {
+      body: { itineraryId, matchIds: matches.map((m: any) => m.id) }
+    });
+
+    if (notifyError) {
+      return 'Trip saved and matches found, but notification dispatch failed.';
+    }
+
+    return null;
+  }
+}
