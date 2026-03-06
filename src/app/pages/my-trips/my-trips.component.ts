@@ -13,6 +13,8 @@ import { ItineraryService } from '../../services/itinerary.service';
     <div class="card shadow-sm">
       <div class="card-body">
         <h2 class="h4 mb-3">My Trips</h2>
+        <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
+        <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
         <button class="btn btn-outline-primary btn-sm mb-3" (click)="load()">Refresh</button>
 
         <div class="table-responsive" *ngIf="trips.length; else empty">
@@ -30,7 +32,10 @@ import { ItineraryService } from '../../services/itinerary.service';
                 <td>{{ trip.origin_airport_code }} → {{ trip.destination_airport_code }}</td>
                 <td>{{ trip.destination || '-' }}</td>
                 <td>{{ trip.start_date }} → {{ trip.end_date || 'One way' }}</td>
-                <td><a class="btn btn-sm btn-outline-primary" [routerLink]="['/itinerary', trip.id]">View</a></td>
+                <td>
+                  <a class="btn btn-sm btn-outline-primary me-2" [routerLink]="['/itinerary', trip.id]">View</a>
+                  <button class="btn btn-sm btn-outline-danger" (click)="deleteTrip(trip.id!)">Delete</button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -42,6 +47,8 @@ import { ItineraryService } from '../../services/itinerary.service';
 })
 export class MyTripsComponent {
   trips: Itinerary[] = [];
+  errorMessage = '';
+  infoMessage = '';
 
   constructor(private authService: AuthService, private itineraryService: ItineraryService) {
     this.load();
@@ -52,5 +59,25 @@ export class MyTripsComponent {
     if (!userId) return;
     const { data } = await this.itineraryService.listMyTrips(userId);
     this.trips = data;
+  }
+
+  async deleteTrip(itineraryId: string) {
+    const ownerId = this.authService.currentSession?.user.id;
+    if (!ownerId || !itineraryId) return;
+
+    const confirmed = window.confirm('Delete this itinerary and related data? This action cannot be undone.');
+    if (!confirmed) return;
+
+    this.errorMessage = '';
+    this.infoMessage = '';
+
+    const error = await this.itineraryService.deleteItinerary(itineraryId, ownerId);
+    if (error) {
+      this.errorMessage = error;
+      return;
+    }
+
+    this.infoMessage = 'Itinerary deleted successfully.';
+    await this.load();
   }
 }

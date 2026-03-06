@@ -35,13 +35,18 @@ import { ItineraryService } from '../../services/itinerary.service';
           <div class="row g-2 mb-2">
             <div class="col-md-6">
               <label class="form-label">Start Date</label>
-              <input class="form-control" type="date" formControlName="start_date" />
+              <input class="form-control" type="date" formControlName="start_date" [attr.min]="today" />
             </div>
             <div class="col-md-6">
               <label class="form-label">End Date</label>
-              <input class="form-control" type="date" formControlName="end_date" />
+              <input class="form-control" type="date" formControlName="end_date" [attr.min]="today" />
             </div>
           </div>
+
+          <h3 class="h6 mt-3 mb-2">Itinerary Legs</h3>
+          <p class="small text-muted mb-2">Add one or more flight legs for this trip.</p>
+
+          <button class="btn btn-outline-secondary mb-3" type="button" (click)="addLeg()" [disabled]="loading">Add Leg</button>
 
           <div formArrayName="legs">
             <div *ngFor="let leg of legs.controls; index as i" [formGroupName]="i" class="border rounded p-3 mb-2 bg-light">
@@ -86,7 +91,6 @@ import { ItineraryService } from '../../services/itinerary.service';
             </div>
           </div>
 
-          <button class="btn btn-outline-secondary me-2 mt-3" type="button" (click)="addLeg()" [disabled]="loading">Add leg</button>
           <button class="btn btn-primary mt-3" [disabled]="loading" type="submit">
             <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
             Publish itinerary
@@ -101,6 +105,7 @@ export class CreateItineraryComponent {
   errorMessage = '';
   infoMessage = '';
   warningMessage = '';
+  today = new Date().toISOString().slice(0, 10);
 
   private readonly airportCodePattern = /^[A-Z]{3,4}$/;
 
@@ -155,6 +160,23 @@ export class CreateItineraryComponent {
     const value = this.form.getRawValue();
     const normalize = (code: string | null | undefined) => (code ?? '').replace(/\s+/g, '').toUpperCase();
     const normalizeFlightNumber = (input: string | null | undefined) => (input ?? '').replace(/\s+/g, '').toUpperCase();
+    if ((value.start_date ?? '') < this.today) {
+      this.errorMessage = 'Start Date cannot be in the past.';
+      this.loading = false;
+      return;
+    }
+
+    if ((value.end_date ?? '') < this.today) {
+      this.errorMessage = 'End Date cannot be in the past.';
+      this.loading = false;
+      return;
+    }
+
+    if ((value.end_date ?? '') < (value.start_date ?? '')) {
+      this.errorMessage = 'End Date must be on or after Start Date.';
+      this.loading = false;
+      return;
+    }
 
     const itinerary = {
       origin_airport_code: normalize(value.origin_airport_code),
@@ -193,6 +215,8 @@ export class CreateItineraryComponent {
       this.infoMessage = 'Trip saved successfully.';
 
       await this.router.navigate(['/my-trips']);
+    } catch {
+      this.errorMessage = 'Unexpected error while saving itinerary.';
     } finally {
       this.loading = false;
     }

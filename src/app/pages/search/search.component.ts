@@ -96,7 +96,8 @@ import { ChatService } from '../../services/chat.service';
       </div>
     </div>
     <ng-template #noResults>
-      <div class="alert alert-secondary" *ngIf="!loadingSearch">No trips found for the selected criteria. Try adjusting airport codes or dates.</div>
+      <div class="alert alert-secondary" *ngIf="!hasSearched && !loadingSearch">Enter search criteria to find trips.</div>
+      <div class="alert alert-secondary" *ngIf="hasSearched && !loadingSearch">No trips found for the selected criteria. Try adjusting airport codes or dates.</div>
     </ng-template>
 
     <ng-container *ngIf="selectedTrip">
@@ -189,6 +190,7 @@ export class SearchComponent {
   infoMessage = 'Use airport codes and date range to search.';
   results: Itinerary[] = [];
   loadingSearch = false;
+  hasSearched = false;
   loadingTripId = '';
 
   selectedTrip: Itinerary | null = null;
@@ -268,6 +270,7 @@ export class SearchComponent {
     }
 
     this.loadingSearch = true;
+    this.hasSearched = true;
     this.errorMessage = '';
     this.infoMessage = '';
 

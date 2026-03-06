@@ -33,6 +33,7 @@ export class AppComponent implements OnDestroy {
 
       if (event instanceof NavigationEnd) {
         this.currentUrl = event.urlAfterRedirects;
+        this.clearStaleOverlays();
       }
     });
 

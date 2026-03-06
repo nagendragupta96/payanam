@@ -19,7 +19,8 @@ interface RankedItinerary {
 @Injectable({ providedIn: 'root' })
 export class ItineraryService {
   async createItinerary(itinerary: Itinerary, userId: string): Promise<{ error: string | null; warning: string | null }> {
-    const header = {
+    try {
+      const header = {
       owner_id: userId,
       origin_airport_code: itinerary.origin_airport_code,
       destination_airport_code: itinerary.destination_airport_code,
@@ -34,13 +35,13 @@ export class ItineraryService {
       return_date: itinerary.end_date ?? null
     };
 
-    const created = await supabase.from('itineraries').insert(header).select('id').single();
-    if (created.error) {
-      return { error: `Failed to save itinerary: ${created.error.message}`, warning: null };
-    }
+      const created = await supabase.from('itineraries').insert(header).select('id').single();
+      if (created.error) {
+        return { error: `Failed to save itinerary: ${created.error.message}`, warning: null };
+      }
 
-    const itineraryId = created.data.id as string;
-    const legs = (itinerary.legs ?? []).map((leg, index) => ({
+      const itineraryId = created.data.id as string;
+      const legs = (itinerary.legs ?? []).map((leg, index) => ({
       itinerary_id: itineraryId,
       leg_order: index + 1,
       origin_airport_code: leg.origin_airport_code,
@@ -53,23 +54,23 @@ export class ItineraryService {
       destination_airport: leg.destination_airport_code
     }));
 
-    if (legs.length) {
-      const { error } = await supabase.from('itinerary_legs').insert(legs);
-      if (error) {
-        return { error: `Trip header saved but failed to save legs: ${error.message}`, warning: null };
+      if (legs.length) {
+        const { error } = await supabase.from('itinerary_legs').insert(legs);
+        if (error) {
+          return { error: `Trip header saved but failed to save legs: ${error.message}`, warning: null };
+        }
       }
-    }
 
-    const contactDetails = itinerary.contact_details;
-    const hasContactDetails = !!(
+      const contactDetails = itinerary.contact_details;
+      const hasContactDetails = !!(
       contactDetails?.contact_name?.trim() ||
       contactDetails?.contact_phone?.trim() ||
       contactDetails?.contact_email?.trim() ||
       contactDetails?.notes?.trim()
     );
 
-    if (hasContactDetails) {
-      const { error } = await supabase.from('itinerary_contact_details').upsert(
+      if (hasContactDetails) {
+        const { error } = await supabase.from('itinerary_contact_details').upsert(
         {
           itinerary_id: itineraryId,
           owner_id: userId,
@@ -81,12 +82,15 @@ export class ItineraryService {
         { onConflict: 'itinerary_id' }
       );
 
-      if (error) {
-        return { error: `Trip saved, but contact details failed to save: ${error.message}`, warning: null };
+        if (error) {
+          return { error: `Trip saved, but contact details failed to save: ${error.message}`, warning: null };
+        }
       }
-    }
 
-    return { error: null, warning: null };
+      return { error: null, warning: null };
+    } catch {
+      return { error: 'Unexpected error while saving itinerary. Please try again.', warning: null };
+    }
   }
 
   async listMyTrips(userId: string): Promise<{ data: Itinerary[]; error: string | null }> {
@@ -110,6 +114,7 @@ export class ItineraryService {
       .select('*')
       .eq('origin_airport_code', originCode)
       .eq('destination_airport_code', destinationCode)
+      .gte('end_date', new Date().toISOString().slice(0, 10))
       .lte('start_date', params.searchEndDate)
       .gte('end_date', params.searchStartDate)
       .limit(300);
@@ -153,6 +158,20 @@ export class ItineraryService {
     if (legs.error) return { data: null, error: legs.error.message };
 
     return { data: { ...(header.data as Itinerary), legs: (legs.data ?? []) as FlightLeg[] }, error: null };
+  }
+
+  async deleteItinerary(itineraryId: string, ownerId: string): Promise<string | null> {
+    const contactDelete = await supabase.from('itinerary_contact_details').delete().eq('itinerary_id', itineraryId).eq('owner_id', ownerId);
+    if (contactDelete.error) return contactDelete.error.message;
+
+    const legsDelete = await supabase.from('itinerary_legs').delete().eq('itinerary_id', itineraryId);
+    if (legsDelete.error) return legsDelete.error.message;
+
+    const requestsDelete = await supabase.from('requests').delete().eq('itinerary_id', itineraryId).eq('owner_id', ownerId);
+    if (requestsDelete.error) return requestsDelete.error.message;
+
+    const itineraryDelete = await supabase.from('itineraries').delete().eq('id', itineraryId).eq('owner_id', ownerId);
+    return itineraryDelete.error?.message ?? null;
   }
 
   private rankItinerary(itinerary: Itinerary): RankedItinerary {

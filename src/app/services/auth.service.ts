@@ -10,6 +10,7 @@ export class AuthService {
   private readonly sessionSubject = new BehaviorSubject<Session | null>(null);
   readonly session$ = this.sessionSubject.asObservable();
   private sessionCheckInFlight: Promise<void> | null = null;
+  private readonly sessionTimeoutMs = 8000;
 
   constructor(private router: Router) {
     void this.loadSession();
@@ -41,7 +42,7 @@ export class AuthService {
 
     this.sessionCheckInFlight = (async () => {
       try {
-        const { data, error } = await supabase.auth.getSession();
+        const { data, error } = await this.withTimeout(supabase.auth.getSession(), this.sessionTimeoutMs);
         if (error) {
           return;
         }
@@ -152,6 +153,38 @@ export class AuthService {
     }
   }
 
+  async loginWithOAuth(provider: 'google' | 'github'): Promise<string | null> {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: environment.emailRedirectUrl
+        }
+      });
+
+      return error?.message ?? null;
+    } catch {
+      return 'Unable to start social login. Please try again.';
+    }
+  }
+
+  async deleteCurrentAccount(): Promise<string | null> {
+    try {
+      const { error: cleanupError } = await supabase.rpc('delete_my_account_data');
+      if (cleanupError) return cleanupError.message;
+
+      const { error: edgeError } = await supabase.functions.invoke('delete-auth-user');
+      if (edgeError) {
+        return 'Your app data was deleted, but auth account deletion requires the delete-auth-user edge function deployment.';
+      }
+
+      await this.logout();
+      return null;
+    } catch {
+      return 'Failed to delete account. Please try again.';
+    }
+  }
+
   async logout(): Promise<void> {
     await supabase.auth.signOut();
     this.sessionSubject.next(null);
@@ -187,6 +220,13 @@ export class AuthService {
     return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error('timeout')), timeoutMs))
+    ]);
+  }
+
   private async handleSignedOutState(): Promise<void> {
     const onProtectedRoute = this.isProtectedRoute(this.router.url);
     if (onProtectedRoute) {
@@ -215,7 +255,12 @@ export class AuthService {
       return null;
     }
 
-    const displayName = user.user_metadata?.['display_name'] || user.email || null;
+    const displayName =
+      user.user_metadata?.['display_name'] ||
+      user.user_metadata?.['full_name'] ||
+      user.user_metadata?.['name'] ||
+      user.email ||
+      null;
     const { error } = await supabase.from('profiles').upsert(
       {
         id: user.id,

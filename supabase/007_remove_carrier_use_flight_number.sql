@@ -82,6 +82,7 @@ select
   ) as legs
 from public.itineraries i
 left join public.itinerary_legs l on l.itinerary_id = i.id
+where coalesce(i.end_date, i.return_date, i.depart_date) >= current_date
 group by i.id;
 
 alter view public.public_itinerary_search set (security_invoker = off);

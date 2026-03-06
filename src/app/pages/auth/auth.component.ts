@@ -43,6 +43,18 @@ import { AuthService } from '../../services/auth.service';
                 {{ mode === 'login' ? 'Need an account? Sign up' : 'Already have an account? Login' }}
               </button>
             </form>
+
+            <div *ngIf="mode === 'login'" class="mt-3">
+              <div class="text-muted small mb-2">Or continue with</div>
+              <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-outline-danger" type="button" [disabled]="loading" (click)="oauth('google')">
+                  Continue with Google
+                </button>
+                <button class="btn btn-outline-dark" type="button" [disabled]="loading" (click)="oauth('github')">
+                  Continue with GitHub
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -101,6 +113,25 @@ export class AuthComponent {
       }
 
       this.infoMessage = 'Signup successful. Please check your email to confirm your account.';
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async oauth(provider: 'google' | 'github') {
+    if (this.loading) return;
+    this.loading = true;
+    this.errorMessage = '';
+    this.infoMessage = '';
+
+    try {
+      const error = await this.authService.loginWithOAuth(provider);
+      if (error) {
+        this.errorMessage = error;
+        return;
+      }
+
+      this.infoMessage = 'Redirecting to provider login...';
     } finally {
       this.loading = false;
     }

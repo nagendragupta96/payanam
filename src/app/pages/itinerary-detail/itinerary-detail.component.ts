@@ -27,6 +27,10 @@ import { Itinerary } from '../../models/itinerary.model';
 
           <div class="alert alert-secondary" *ngIf="isSelfTrip">This is your trip.</div>
 
+          <button class="btn btn-outline-danger me-2" *ngIf="isSelfTrip" [disabled]="loadingSend" (click)="deleteItinerary()">
+            Delete Itinerary
+          </button>
+
           <button class="btn btn-primary" *ngIf="!isSelfTrip" [disabled]="loadingSend" (click)="send()">
             <span *ngIf="loadingSend" class="spinner-border spinner-border-sm me-2"></span>
             Send Request
@@ -100,6 +104,32 @@ export class ItineraryDetailComponent {
       }
       this.infoMessage = result.existing ? 'Request already exists.' : 'Request sent.';
       await this.router.navigate(['/requests', result.data.id]);
+    } finally {
+      this.loadingSend = false;
+    }
+  }
+
+  async deleteItinerary() {
+    if (!this.itinerary || !this.isSelfTrip) return;
+    const ownerId = this.authService.currentSession?.user.id;
+    if (!ownerId) return;
+
+    const confirmed = window.confirm('Delete this itinerary and related requests/contact data?');
+    if (!confirmed) return;
+
+    this.loadingSend = true;
+    this.errorMessage = '';
+    this.infoMessage = '';
+
+    try {
+      const error = await this.itineraryService.deleteItinerary(this.itinerary.id!, ownerId);
+      if (error) {
+        this.errorMessage = error;
+        return;
+      }
+
+      this.infoMessage = 'Itinerary deleted successfully.';
+      await this.router.navigate(['/my-trips']);
     } finally {
       this.loadingSend = false;
     }

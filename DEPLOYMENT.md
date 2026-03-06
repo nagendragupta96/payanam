@@ -6,7 +6,8 @@
 3. Ensure **Auth → URL Configuration** is set:
    - Site URL (your app URL)
    - Redirect URL includes `/auth` route
-4. Run your project schema SQL (tables) and then run:
+4. Enable Auth providers as needed (e.g., Google, GitHub) for SSO login.
+5. Run your project schema SQL (tables) and then run:
    - `supabase/001_auth_profiles_bootstrap.sql`
    - `supabase/002_trip_contact_requests_chat.sql`
    - `supabase/003_airport_codes_public_search_and_notifications.sql`
@@ -27,6 +28,14 @@ Set:
 - `supabaseAnonKey`
 
 If these remain placeholders, auth calls may fail in the browser with `Failed to fetch` and no user/profile row will be created.
+
+## 2.1) Deploy account deletion edge function (recommended)
+This app can call an edge function named `delete-auth-user` for secure auth-user deletion.
+
+Required env vars for the function:
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
 ## 3) Build locally
 ```bash
