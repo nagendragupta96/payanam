@@ -32,6 +32,10 @@ export class AuthService {
     return this.sessionSubject.value;
   }
 
+  getUserLabel(profile: any, fallbackEmail?: string): string {
+    return profile?.full_name || profile?.display_name || fallbackEmail || 'User';
+  }
+
   async loadSession(): Promise<void> {
     if (this.sessionCheckInFlight) {
       return this.sessionCheckInFlight;
@@ -58,11 +62,19 @@ export class AuthService {
     }
   }
 
-  async signup(email: string, password: string): Promise<string | null> {
+  async signup(email: string, password: string, displayName: string): Promise<string | null> {
+    const name = displayName.trim();
+    if (!name) return 'Display Name is required.';
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/auth` }
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth`,
+        data: {
+          display_name: name
+        }
+      }
     });
 
     if (error) {
@@ -74,6 +86,11 @@ export class AuthService {
 
     if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
       return 'An account already exists with this email. Please login instead.';
+    }
+
+    if (data.user) {
+      const profileError = await this.ensureProfileRecord(data.user, name);
+      if (profileError) return profileError;
     }
 
     return null;
@@ -116,16 +133,17 @@ export class AuthService {
     return text.includes('already registered') || text.includes('already been registered') || text.includes('user already registered');
   }
 
-  private async ensureProfileRecord(user: User): Promise<string | null> {
-    const sessionUserId = this.currentSession?.user.id;
+  private async ensureProfileRecord(user: User, preferredName?: string): Promise<string | null> {
+    const sessionUserId = this.currentSession?.user.id ?? user.id;
     if (!sessionUserId || sessionUserId !== user.id) {
       return null;
     }
 
+    const fullName = preferredName || user.user_metadata?.['full_name'] || user.user_metadata?.['display_name'] || user.email || null;
     const { error } = await supabase.from('profiles').upsert(
       {
         id: user.id,
-        display_name: user.user_metadata?.['display_name'] ?? user.email ?? null,
+        display_name: user.user_metadata?.['display_name'] ?? fullName,
         avatar_url: user.user_metadata?.['avatar_url'] ?? null
       },
       { onConflict: 'id' }

@@ -9,7 +9,7 @@
 
       <div class="collapse navbar-collapse" [class.show]="isNavOpen">
         <div class="d-flex flex-column flex-lg-row gap-2 ms-lg-auto py-2 py-lg-0">
-          <a routerLink="/home" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Home</a>
+          <a routerLink="/home" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Home</a>
           <a routerLink="/search" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Search</a>
 
           @if (!isLoggedIn) {
@@ -20,7 +20,7 @@
             <a routerLink="/create-itinerary" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Post Trip</a>
             <a routerLink="/my-trips" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">My Trips</a>
             <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary" (click)="closeNav()">Requests</a>
-            <a routerLink="/requests" routerLinkActive="active" class="btn btn-sm btn-outline-primary position-relative" (click)="closeNav()">
+            <a routerLink="/messages" class="btn btn-sm btn-outline-primary position-relative" [class.active]="isSectionActive('/messages') || isSectionActive('/chat')" (click)="closeNav()">
               Messages
               @if (messageNotificationService.unreadCount > 0) {
                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ messageNotificationService.unreadCount }}</span>

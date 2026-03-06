@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { RequestService } from '../../services/request.service';
 import { ItineraryService } from '../../services/itinerary.service';
@@ -48,7 +48,8 @@ export class ItineraryDetailComponent {
     private route: ActivatedRoute,
     private requestService: RequestService,
     private authService: AuthService,
-    private itineraryService: ItineraryService
+    private itineraryService: ItineraryService,
+    private router: Router
   ) {
     this.load();
   }
@@ -92,12 +93,13 @@ export class ItineraryDetailComponent {
     this.infoMessage = '';
 
     try {
-      const error = await this.requestService.createRequest(this.itineraryId, userId, 'COMPANION');
-      if (error) {
-        this.errorMessage = error;
+      const result = await this.requestService.createOrGetRequest(this.itineraryId, userId, 'COMPANION');
+      if (result.error || !result.data) {
+        this.errorMessage = result.error ?? 'Unable to create request.';
         return;
       }
-      this.infoMessage = 'Request sent.';
+      this.infoMessage = result.existing ? 'Request already exists.' : 'Request sent.';
+      await this.router.navigate(['/requests', result.data.id]);
     } finally {
       this.loadingSend = false;
     }

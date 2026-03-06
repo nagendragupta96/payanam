@@ -1,12 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { Component, HostListener } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Itinerary } from '../../models/itinerary.model';
 import { AuthService } from '../../services/auth.service';
 import { ItineraryService } from '../../services/itinerary.service';
 import { RequestService, RequestType } from '../../services/request.service';
 import { ItineraryContactService } from '../../services/itinerary-contact.service';
+import { ChatService } from '../../services/chat.service';
 
 @Component({
   selector: 'app-search',
@@ -61,6 +62,7 @@ import { ItineraryContactService } from '../../services/itinerary-contact.servic
           <div class="card-body">
             <h5 class="card-title">{{ item.origin_airport_code }} → {{ item.destination_airport_code }}</h5>
             <p class="card-text mb-1"><strong>Dates:</strong> {{ item.start_date }} → {{ item.end_date || 'One way' }}</p>
+            <p class="card-text mb-1"><strong>Posted by:</strong> {{ ownerLabel(item.owner_id) }}</p>
             <p class="card-text"><strong>Legs:</strong> {{ item.legs.length }}</p>
             <button class="btn btn-outline-primary btn-sm" [disabled]="loadingTripId === item.id" (click)="openTrip(item)">
               <span *ngIf="loadingTripId === item.id" class="spinner-border spinner-border-sm me-1"></span>
@@ -86,6 +88,7 @@ import { ItineraryContactService } from '../../services/itinerary-contact.servic
 
               <p><strong>Route:</strong> {{ selectedTrip.origin_airport_code }} → {{ selectedTrip.destination_airport_code }}</p>
               <p><strong>Travel:</strong> {{ selectedTrip.start_date }} → {{ selectedTrip.end_date || 'One way' }}</p>
+              <p><strong>Posted by:</strong> {{ ownerLabel(selectedTrip.owner_id) }}</p>
 
               <h6>Legs</h6>
               <ul class="list-group mb-3">
@@ -147,13 +150,8 @@ import { ItineraryContactService } from '../../services/itinerary-contact.servic
   `,
   styles: [
     `
-      .trip-modal {
-        z-index: 1060;
-      }
-
-      .trip-modal-backdrop {
-        z-index: 1050;
-      }
+      .trip-modal { z-index: 1060; }
+      .trip-modal-backdrop { z-index: 1050; }
     `
   ]
 })
@@ -172,6 +170,7 @@ export class SearchComponent {
   canViewContactDetails = false;
 
   contactForm: any = { contact_name: '', contact_phone: '', contact_email: '', notes: '' };
+  private ownerLabels: Record<string, string> = {};
 
   form = this.fb.group({
     originAirportCode: ['', Validators.required],
@@ -187,7 +186,9 @@ export class SearchComponent {
     private itineraryService: ItineraryService,
     private authService: AuthService,
     private requestService: RequestService,
-    private itineraryContactService: ItineraryContactService
+    private itineraryContactService: ItineraryContactService,
+    private chatService: ChatService,
+    private router: Router
   ) {}
 
   get isLoggedIn(): boolean {
@@ -196,6 +197,11 @@ export class SearchComponent {
 
   get isSelfTrip(): boolean {
     return !!this.selectedTrip && this.selectedTrip.owner_id === this.authService.currentSession?.user.id;
+  }
+
+  ownerLabel(ownerId?: string): string {
+    if (!ownerId) return 'User';
+    return this.ownerLabels[ownerId] || 'User';
   }
 
   @HostListener('document:keydown.escape')
@@ -230,11 +236,11 @@ export class SearchComponent {
       });
 
       this.results = data;
-      if (error) {
-        this.errorMessage = error;
-      } else {
-        this.infoMessage = `${data.length} itinerary(ies) found.`;
-      }
+      this.infoMessage = `${data.length} itinerary(ies) found.`;
+      if (error) this.errorMessage = error;
+
+      const ownerIds = [...new Set(data.map((d) => d.owner_id).filter(Boolean))] as string[];
+      this.ownerLabels = await this.chatService.getProfileNames(ownerIds);
     } finally {
       this.loadingSearch = false;
     }
@@ -257,6 +263,10 @@ export class SearchComponent {
     }
 
     this.selectedTrip = data;
+    if (data.owner_id && !this.ownerLabels[data.owner_id]) {
+      const one = await this.chatService.getProfileNames([data.owner_id]);
+      this.ownerLabels = { ...this.ownerLabels, ...one };
+    }
     await this.loadContactDetails();
     this.loadingTripId = '';
   }
@@ -281,13 +291,15 @@ export class SearchComponent {
     this.tripInfo = '';
 
     try {
-      const error = await this.requestService.createRequest(this.selectedTrip.id!, userId, type);
-      if (error) {
-        this.tripError = error;
+      const result = await this.requestService.createOrGetRequest(this.selectedTrip.id!, userId, type);
+      if (result.error || !result.data) {
+        this.tripError = result.error ?? 'Unable to create request.';
         return;
       }
-      this.tripInfo = `${type} request sent.`;
-      await this.loadContactDetails();
+
+      this.tripInfo = result.existing ? 'Request already exists. Opening details.' : 'Request created. Opening details.';
+      await this.router.navigate(['/requests', result.data.id]);
+      this.closeTrip();
     } finally {
       this.requestLoading = false;
     }

@@ -10,6 +10,7 @@ import { RequestsInboxComponent } from './pages/requests-inbox/requests-inbox.co
 import { ChatComponent } from './pages/chat/chat.component';
 import { SettingsComponent } from './pages/settings/settings.component';
 import { MyTripsComponent } from './pages/my-trips/my-trips.component';
+import { RequestDetailComponent } from './pages/request-detail/request-detail.component';
 
 export const routes: Routes = [
   { path: '', component: LandingComponent },
@@ -21,8 +22,10 @@ export const routes: Routes = [
   { path: 'search', component: SearchComponent },
   { path: 'itinerary/:id', component: ItineraryDetailComponent },
   { path: 'requests', component: RequestsInboxComponent, canActivate: [authGuard] },
-  { path: 'messages/:requestId', component: ChatComponent, canActivate: [authGuard] },
-  { path: 'chat/:requestId', component: ChatComponent, canActivate: [authGuard] },
+  { path: 'requests/:id', component: RequestDetailComponent, canActivate: [authGuard] },
+  { path: 'messages', component: ChatComponent, canActivate: [authGuard] },
+  { path: 'messages/:threadId', component: ChatComponent, canActivate: [authGuard] },
+  { path: 'chat/:threadId', component: ChatComponent, canActivate: [authGuard] },
   { path: 'settings', component: SettingsComponent, canActivate: [authGuard] },
   { path: '**', redirectTo: '' }
 ];

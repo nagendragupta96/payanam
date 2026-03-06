@@ -2,7 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
-import { RequestService } from '../../services/request.service';
+import { ChatService } from '../../services/chat.service';
+import { RequestRecord, RequestService } from '../../services/request.service';
 
 @Component({
   selector: 'app-requests-inbox',
@@ -12,7 +13,7 @@ import { RequestService } from '../../services/request.service';
     <div class="card shadow-sm">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h2 class="h4 mb-0">Requests & Messages</h2>
+          <h2 class="h4 mb-0">Requests</h2>
           <button class="btn btn-outline-primary btn-sm" (click)="load()" [disabled]="loading">
             <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
             Refresh
@@ -25,13 +26,21 @@ import { RequestService } from '../../services/request.service';
         <h3 class="h6">Incoming</h3>
         <ul class="list-group mb-3">
           <li class="list-group-item" *ngFor="let req of incoming">
-            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
-              <span>{{ req.status }} - {{ req.request_type || 'COMPANION' }} - {{ req.message || 'No message' }}</span>
+            <div class="d-flex justify-content-between gap-2 flex-wrap align-items-start">
+              <div>
+                <div class="fw-semibold">Request received from {{ userLabel(req.requester_id) }}</div>
+                <div class="small text-muted">{{ req.request_type }} • {{ req.status }}</div>
+                <div class="small">
+                  {{ req.itineraries?.origin_airport_code || '-' }} → {{ req.itineraries?.destination_airport_code || '-' }}
+                  ({{ req.itineraries?.start_date || '-' }} → {{ req.itineraries?.end_date || '-' }})
+                </div>
+              </div>
               <div class="d-flex gap-2">
                 <button class="btn btn-sm btn-success" *ngIf="req.status === 'PENDING'" [disabled]="acceptingId === req.id" (click)="accept(req.id)">
                   <span *ngIf="acceptingId === req.id" class="spinner-border spinner-border-sm me-1"></span>
                   Accept
                 </button>
+                <button class="btn btn-sm btn-outline-primary" (click)="openRequest(req.id)">Details</button>
                 <button class="btn btn-sm btn-outline-primary" *ngIf="req.status === 'ACCEPTED'" (click)="openMessages(req.id)">Messages</button>
               </div>
             </div>
@@ -41,9 +50,19 @@ import { RequestService } from '../../services/request.service';
         <h3 class="h6">Outgoing</h3>
         <ul class="list-group mb-0">
           <li class="list-group-item" *ngFor="let req of outgoing">
-            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
-              <span>{{ req.status }} - {{ req.request_type || 'COMPANION' }} - {{ req.message || 'No message' }}</span>
-              <button class="btn btn-sm btn-outline-primary" *ngIf="req.status === 'ACCEPTED'" (click)="openMessages(req.id)">Messages</button>
+            <div class="d-flex justify-content-between gap-2 flex-wrap align-items-start">
+              <div>
+                <div class="fw-semibold">Request sent to {{ userLabel(req.owner_id) }}</div>
+                <div class="small text-muted">{{ req.request_type }} • {{ req.status }}</div>
+                <div class="small">
+                  {{ req.itineraries?.origin_airport_code || '-' }} → {{ req.itineraries?.destination_airport_code || '-' }}
+                  ({{ req.itineraries?.start_date || '-' }} → {{ req.itineraries?.end_date || '-' }})
+                </div>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" (click)="openRequest(req.id)">Details</button>
+                <button class="btn btn-sm btn-outline-primary" *ngIf="req.status === 'ACCEPTED'" (click)="openMessages(req.id)">Messages</button>
+              </div>
             </div>
           </li>
         </ul>
@@ -52,15 +71,26 @@ import { RequestService } from '../../services/request.service';
   `
 })
 export class RequestsInboxComponent {
-  incoming: any[] = [];
-  outgoing: any[] = [];
+  incoming: RequestRecord[] = [];
+  outgoing: RequestRecord[] = [];
   loading = false;
   acceptingId = '';
   errorMessage = '';
   infoMessage = '';
 
-  constructor(private authService: AuthService, private requestService: RequestService, private router: Router) {
-    this.load();
+  private labels: Record<string, string> = {};
+
+  constructor(
+    private authService: AuthService,
+    private requestService: RequestService,
+    private chatService: ChatService,
+    private router: Router
+  ) {
+    void this.load();
+  }
+
+  userLabel(id: string): string {
+    return this.labels[id] || 'User';
   }
 
   async load() {
@@ -74,6 +104,15 @@ export class RequestsInboxComponent {
       const data = await this.requestService.inbox(userId);
       this.incoming = data.incoming;
       this.outgoing = data.outgoing;
+
+      const ids = [
+        ...new Set([...this.incoming.map((r) => r.requester_id), ...this.outgoing.map((r) => r.owner_id), userId])
+      ];
+      this.labels = await this.chatService.getProfileNames(ids);
+      if (!this.labels[userId]) {
+        this.labels[userId] = this.authService.currentSession?.user.email || 'Me';
+      }
+
       if (data.error) this.errorMessage = data.error;
     } finally {
       this.loading = false;
@@ -95,7 +134,7 @@ export class RequestsInboxComponent {
       this.infoMessage = 'Request accepted.';
       await this.load();
       if (threadId) {
-        await this.router.navigate(['/messages', requestId]);
+        await this.router.navigate(['/messages', threadId]);
       }
     } finally {
       this.acceptingId = '';
@@ -103,6 +142,15 @@ export class RequestsInboxComponent {
   }
 
   async openMessages(requestId: string) {
-    await this.router.navigate(['/messages', requestId]);
+    const thread = await this.chatService.getThreadByRequest(requestId);
+    if (thread.error || !thread.data?.id) {
+      this.errorMessage = thread.error ?? 'No chat thread found.';
+      return;
+    }
+    await this.router.navigate(['/messages', thread.data.id]);
+  }
+
+  async openRequest(requestId: string) {
+    await this.router.navigate(['/requests', requestId]);
   }
 }

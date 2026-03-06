@@ -32,7 +32,8 @@ import { AuthService } from '../../services/auth.service';
 
             <form [formGroup]="form" (ngSubmit)="submit()">
               <input class="form-control mb-2" placeholder="Email" formControlName="email" />
-              <input class="form-control mb-3" placeholder="Password" type="password" formControlName="password" />
+              <input class="form-control mb-2" placeholder="Password" type="password" formControlName="password" />
+              <input *ngIf="mode === 'signup'" class="form-control mb-3" placeholder="Display Name" formControlName="displayName" />
 
               <button class="btn btn-primary" [disabled]="loading" type="submit">
                 <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
@@ -56,7 +57,8 @@ export class AuthComponent {
 
   form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(6)]]
+    password: ['', [Validators.required, Validators.minLength(6)]],
+    displayName: ['']
   });
 
   constructor(private fb: FormBuilder, private authService: AuthService, private router: Router) {}
@@ -65,6 +67,14 @@ export class AuthComponent {
     this.mode = this.mode === 'login' ? 'signup' : 'login';
     this.errorMessage = '';
     this.infoMessage = '';
+
+    const displayNameCtrl = this.form.get('displayName');
+    if (this.mode === 'signup') {
+      displayNameCtrl?.setValidators([Validators.required, Validators.minLength(2)]);
+    } else {
+      displayNameCtrl?.clearValidators();
+    }
+    displayNameCtrl?.updateValueAndValidity();
   }
 
   async submit() {
@@ -74,10 +84,10 @@ export class AuthComponent {
     this.infoMessage = '';
 
     try {
-      const { email, password } = this.form.getRawValue();
+      const { email, password, displayName } = this.form.getRawValue();
       const error = this.mode === 'login'
         ? await this.authService.login(email!, password!)
-        : await this.authService.signup(email!, password!);
+        : await this.authService.signup(email!, password!, displayName ?? '');
 
       if (error) {
         this.errorMessage = error;

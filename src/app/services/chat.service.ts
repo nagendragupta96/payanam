@@ -3,8 +3,17 @@ import { supabase } from './supabase-client';
 
 export interface ChatMessage {
   id: string;
+  thread_id?: string;
   body: string;
   sender_id: string;
+  created_at?: string;
+}
+
+export interface ChatThread {
+  id: string;
+  owner_id: string;
+  requester_id: string;
+  request_id: string;
   created_at?: string;
 }
 
@@ -23,24 +32,54 @@ export class ChatService {
     return { safe: true };
   }
 
-  async getThreadByRequest(requestId: string): Promise<{ data: any | null; error: string | null }> {
+  async listThreadsForUser(userId: string): Promise<{ data: ChatThread[]; error: string | null }> {
     const { data, error } = await supabase
       .from('chat_threads')
-      .select('id, request_id, owner_id, requester_id')
+      .select('id, owner_id, requester_id, request_id, created_at')
+      .or(`owner_id.eq.${userId},requester_id.eq.${userId}`)
+      .order('created_at', { ascending: false });
+
+    return { data: (data as ChatThread[]) ?? [], error: error?.message ?? null };
+  }
+
+  async getThreadByRequest(requestId: string): Promise<{ data: ChatThread | null; error: string | null }> {
+    const { data, error } = await supabase
+      .from('chat_threads')
+      .select('id, owner_id, requester_id, request_id, created_at')
       .eq('request_id', requestId)
       .maybeSingle();
 
-    return { data, error: error?.message ?? null };
+    return { data: (data as ChatThread) ?? null, error: error?.message ?? null };
   }
 
   async listMessages(threadId: string): Promise<{ data: ChatMessage[]; error: string | null }> {
     const { data, error } = await supabase
       .from('chat_messages')
-      .select('id, body, sender_id, created_at')
+      .select('id, thread_id, body, sender_id, created_at')
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true });
 
     return { data: (data as ChatMessage[]) ?? [], error: error?.message ?? null };
+  }
+
+  async listLastMessagesByThread(threadIds: string[]): Promise<{ data: Record<string, ChatMessage>; error: string | null }> {
+    if (!threadIds.length) return { data: {}, error: null };
+
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('id, thread_id, body, sender_id, created_at')
+      .in('thread_id', threadIds)
+      .order('created_at', { ascending: false });
+
+    if (error) return { data: {}, error: error.message };
+
+    const map: Record<string, ChatMessage> = {};
+    for (const msg of (data as ChatMessage[]) ?? []) {
+      if (!msg.thread_id) continue;
+      if (!map[msg.thread_id]) map[msg.thread_id] = msg;
+    }
+
+    return { data: map, error: null };
   }
 
   async sendMessage(threadId: string, senderId: string, body: string): Promise<{ data: ChatMessage | null; error: string | null }> {
@@ -49,12 +88,8 @@ export class ChatService {
 
     const { data, error } = await supabase
       .from('chat_messages')
-      .insert({
-        thread_id: threadId,
-        sender_id: senderId,
-        body
-      })
-      .select('id, body, sender_id, created_at')
+      .insert({ thread_id: threadId, sender_id: senderId, body })
+      .select('id, thread_id, body, sender_id, created_at')
       .single();
 
     return { data: (data as ChatMessage) ?? null, error: error?.message ?? null };
