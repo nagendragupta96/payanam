@@ -16,6 +16,7 @@ export class AppComponent implements OnDestroy {
   private readonly subscription: Subscription;
   currentUrl = '/';
   private recoveringState = false;
+  private hiddenAt = 0;
 
   constructor(
     public authService: AuthService,
@@ -39,6 +40,7 @@ export class AppComponent implements OnDestroy {
 
     window.addEventListener('unhandledrejection', this.onUnhandledRejection);
     window.addEventListener('focus', this.onWindowFocus);
+    window.addEventListener('online', this.onWindowOnline);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
@@ -62,20 +64,28 @@ export class AppComponent implements OnDestroy {
     void this.recoverAppState();
   };
 
-  private onVisibilityChange = () => {
-    if (!document.hidden) {
-      void this.recoverAppState();
-    }
+  private onWindowOnline = () => {
+    void this.recoverAppState(true);
   };
 
-  private async recoverAppState() {
+  private onVisibilityChange = () => {
+    if (document.hidden) {
+      this.hiddenAt = Date.now();
+      return;
+    }
+
+    const hiddenMs = this.hiddenAt ? Date.now() - this.hiddenAt : 0;
+    void this.recoverAppState(hiddenMs > 10_000);
+  };
+
+  private async recoverAppState(forceRefresh = false) {
     if (this.recoveringState) return;
 
     this.recoveringState = true;
     const startedAt = Date.now();
 
     try {
-      await this.authService.refreshSessionIfNeeded();
+      await this.authService.refreshSessionIfNeeded(forceRefresh);
     } finally {
       this.clearStaleOverlays();
       const elapsed = Date.now() - startedAt;
@@ -100,6 +110,7 @@ export class AppComponent implements OnDestroy {
     this.subscription.unsubscribe();
     window.removeEventListener('unhandledrejection', this.onUnhandledRejection);
     window.removeEventListener('focus', this.onWindowFocus);
+    window.removeEventListener('online', this.onWindowOnline);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
   }
 }

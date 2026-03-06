@@ -34,3 +34,18 @@ Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To u
 ## Further help
 
 To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+
+## OAuth setup (Google / GitHub)
+
+To make **Continue with Google** and **Continue with GitHub** work, configure Supabase Authentication:
+
+1. In Supabase Dashboard → **Authentication → Providers**
+   - Enable **Google** and set Client ID / Secret.
+   - Enable **GitHub** and set Client ID / Secret.
+2. In Supabase Dashboard → **Authentication → URL Configuration**
+   - Set **Site URL** to your app base URL (dev: `http://localhost:4200`, prod: your deployed domain).
+   - Add redirect URL(s) used by this app (for example `http://localhost:4200/auth` and your production `/auth` URL).
+3. In this project, keep `emailRedirectUrl` in `src/environments/environment.ts` and `environment.prod.ts` aligned with those redirect URLs.
+
+If a provider is disabled/misconfigured, the app will show a clear error message at the top of the auth page.
+

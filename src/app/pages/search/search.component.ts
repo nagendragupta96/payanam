@@ -141,7 +141,7 @@ import { ChatService } from '../../services/chat.service';
                   {{ requestButtonLabel('ASSISTANCE') }}
                 </button>
                 <button *ngIf="hasContactDetails" class="btn btn-outline-secondary" [disabled]="requestLoading" (click)="sendRequest('CONTACT_DETAILS')">
-                  Request Contact Details
+                  Request for Contact Details
                 </button>
               </div>
 
@@ -426,7 +426,7 @@ export class SearchComponent {
   requestButtonLabel(type: RequestType): string {
     if (type === 'COMPANION') return 'Companion Request';
     if (type === 'ASSISTANCE') return 'Assistance Request';
-    return 'Request Contact Details';
+    return 'Request for Contact Details';
   }
 
   async saveContactDetails() {

@@ -170,7 +170,8 @@ export class AuthService {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: environment.emailRedirectUrl
+          // Supabase dashboard must include this URL in Authentication > URL Configuration > Redirect URLs.
+          redirectTo: this.getOAuthRedirectUrl()
         }
       });
 
@@ -255,6 +256,18 @@ export class AuthService {
   private isProtectedRoute(path: string): boolean {
     const protectedPrefixes = ['/profile', '/create-itinerary', '/my-trips', '/requests', '/messages', '/chat', '/settings'];
     return protectedPrefixes.some((prefix) => path.startsWith(prefix));
+  }
+
+
+  private getOAuthRedirectUrl(): string {
+    const configured = environment.emailRedirectUrl?.trim();
+    if (configured) return configured;
+
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}/auth`;
+    }
+
+    return '/auth';
   }
 
   private isExistingEmailError(message: string): boolean {
