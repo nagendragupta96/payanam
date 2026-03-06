@@ -81,6 +81,13 @@ export class AuthService {
       if (this.isExistingEmailError(error.message)) {
         return 'An account already exists with this email. Please login instead.';
       }
+
+      const status = (error as any)?.status as number | undefined;
+      const msg = (error.message || '').toLowerCase();
+      if ((status && status >= 500) || msg.includes('database error saving new user')) {
+        return 'Signup failed while creating your profile. Please try again.';
+      }
+
       return error.message;
     }
 

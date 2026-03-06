@@ -11,6 +11,7 @@
    - `supabase/002_trip_contact_requests_chat.sql`
    - `supabase/003_airport_codes_public_search_and_notifications.sql`
    - `supabase/004_signup_atomic_profile_subscription.sql`
+   - `supabase/005_harden_signup_trigger_runtime.sql`
 
 This adds:
 - RLS policies for `profiles`
