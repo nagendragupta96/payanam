@@ -162,7 +162,13 @@ export class AuthService {
         }
       });
 
-      return error?.message ?? null;
+      if (!error) return null;
+
+      if (this.isUnsupportedProviderError(error.message)) {
+        return `${provider[0].toUpperCase() + provider.slice(1)} login is not enabled in Supabase Auth. Please enable it in Authentication → Providers, then try again.`;
+      }
+
+      return error.message;
     } catch {
       return 'Unable to start social login. Please try again.';
     }
@@ -247,6 +253,11 @@ export class AuthService {
   private isNetworkFetchError(message: string): boolean {
     const text = message.toLowerCase();
     return text.includes('failed to fetch') || text.includes('network request failed') || text.includes('fetch failed');
+  }
+
+  private isUnsupportedProviderError(message: string): boolean {
+    const text = message.toLowerCase();
+    return text.includes('unsupported provider') || text.includes('provider is not enabled');
   }
 
   private async ensureProfileRecord(user: User): Promise<string | null> {
