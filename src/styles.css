@@ -1,0 +1,9 @@
+/* You can add global styles to this file, and also import other style files */
+
+.card > .card-body {
+  background-color: #f8f9fc;
+}
+
+.card > .card-body .text-muted {
+  color: #5f6b7a !important;
+}
