@@ -1,6 +1,31 @@
 import { createClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
 
+async function safeAuthLock<T>(name: string, _acquireTimeout: number, fn: () => Promise<T>): Promise<T> {
+  if (typeof window === 'undefined') {
+    return await fn();
+  }
+
+  const lockManager = window.navigator?.locks;
+  if (!lockManager?.request) {
+    return await fn();
+  }
+
+  try {
+    // Non-blocking lock attempt so a busy/stale browser lock never breaks auth flows.
+    return await lockManager.request(name, { mode: 'exclusive', ifAvailable: true }, async (lock) => {
+      if (!lock) {
+        return await fn();
+      }
+
+      return await fn();
+    });
+  } catch (error) {
+    console.warn('[supabase-lock] navigator lock failed; continuing without lock', { name, error });
+    return await fn();
+  }
+}
+
 function getSupabaseConfigIssue(): string | null {
   const url = environment.supabaseUrl?.trim() ?? '';
   const anonKey = environment.supabaseAnonKey?.trim() ?? '';
@@ -18,13 +43,11 @@ function getSupabaseConfigIssue(): string | null {
 
 export const supabaseConfigIssue = getSupabaseConfigIssue();
 
-// Use Supabase's default browser auth locking behavior.
-// The previous custom in-memory lock could stall during tab/window switching and trigger
-// lock hold timeout warnings followed by auth foreground timeout failures.
 export const supabase = createClient(environment.supabaseUrl, environment.supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    lock: safeAuthLock
   }
 });
