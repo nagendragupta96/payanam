@@ -18,6 +18,7 @@ export const routes: Routes = [
   { path: 'auth', component: AuthComponent },
   { path: 'profile', component: ProfileComponent, canActivate: [authGuard] },
   { path: 'create-itinerary', component: CreateItineraryComponent, canActivate: [authGuard] },
+  { path: 'edit-itinerary/:id', component: CreateItineraryComponent, canActivate: [authGuard] },
   { path: 'my-trips', component: MyTripsComponent, canActivate: [authGuard] },
   { path: 'search', component: SearchComponent },
   { path: 'itinerary/:id', component: ItineraryDetailComponent },

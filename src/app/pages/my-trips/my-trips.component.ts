@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { Itinerary } from '../../models/itinerary.model';
@@ -34,6 +35,7 @@ import { ItineraryService } from '../../services/itinerary.service';
                 <td class="date-cell">{{ trip.start_date }} → {{ trip.end_date || 'One way' }}</td>
                 <td>
                   <a class="btn btn-sm btn-outline-primary me-2" [routerLink]="['/itinerary', trip.id]">View</a>
+                  <a class="btn btn-sm btn-outline-secondary me-2" [routerLink]="['/edit-itinerary', trip.id]">Edit Itinerary</a>
                   <button class="btn btn-sm btn-outline-danger" (click)="deleteTrip(trip.id!)">Delete</button>
                 </td>
               </tr>
@@ -49,16 +51,30 @@ export class MyTripsComponent {
   trips: Itinerary[] = [];
   errorMessage = '';
   infoMessage = '';
+  loading = false;
 
-  constructor(private authService: AuthService, private itineraryService: ItineraryService) {
+  constructor(private authService: AuthService, private itineraryService: ItineraryService, private route: ActivatedRoute) {
+    this.route.queryParamMap.subscribe((params) => {
+      this.infoMessage = params.get('info') ?? this.infoMessage;
+    });
+
     this.load();
   }
 
   async load() {
     const userId = this.authService.currentSession?.user.id;
-    if (!userId) return;
-    const { data } = await this.itineraryService.listMyTrips(userId);
-    this.trips = data;
+    if (!userId || this.loading) return;
+
+    this.loading = true;
+    this.errorMessage = '';
+
+    try {
+      const { data, error } = await this.itineraryService.listMyTrips(userId);
+      this.trips = data;
+      if (error) this.errorMessage = error;
+    } finally {
+      this.loading = false;
+    }
   }
 
   async deleteTrip(itineraryId: string) {

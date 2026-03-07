@@ -100,6 +100,95 @@ export class ItineraryService {
     }
   }
 
+  async updateItinerary(itineraryId: string, itinerary: Itinerary, ownerId: string): Promise<{ error: string | null; warning: string | null }> {
+    try {
+      let warning: string | null = null;
+
+      const headerUpdate = await supabase
+        .from('itineraries')
+        .update({
+          origin_airport_code: itinerary.origin_airport_code,
+          destination_airport_code: itinerary.destination_airport_code,
+          start_date: itinerary.start_date,
+          end_date: itinerary.end_date ?? itinerary.start_date,
+          destination: itinerary.destination ?? null,
+          notes: itinerary.notes ?? null,
+          origin_airport: itinerary.origin_airport_code,
+          destination_airport: itinerary.destination_airport_code,
+          depart_date: itinerary.start_date,
+          return_date: itinerary.end_date ?? null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', itineraryId)
+        .eq('owner_id', ownerId)
+        .select('id')
+        .maybeSingle();
+
+      if (headerUpdate.error || !headerUpdate.data?.id) {
+        return { error: headerUpdate.error?.message ?? 'Unable to update itinerary.', warning: null };
+      }
+
+      const removeLegs = await supabase.from('itinerary_legs').delete().eq('itinerary_id', itineraryId);
+      if (removeLegs.error) {
+        return { error: `Itinerary updated, but old legs cleanup failed: ${removeLegs.error.message}`, warning: null };
+      }
+
+      const legs = (itinerary.legs ?? []).map((leg, index) => ({
+        itinerary_id: itineraryId,
+        leg_order: index + 1,
+        origin_airport_code: leg.origin_airport_code,
+        destination_airport_code: leg.destination_airport_code,
+        flight_number: leg.flight_number,
+        departure_at: leg.departure_at ?? null,
+        arrival_at: leg.arrival_at ?? null,
+        origin_airport: leg.origin_airport_code,
+        destination_airport: leg.destination_airport_code
+      }));
+
+      if (legs.length) {
+        const insertedLegs = await supabase.from('itinerary_legs').insert(legs);
+        if (insertedLegs.error) {
+          return { error: `Itinerary updated, but saving legs failed: ${insertedLegs.error.message}`, warning: null };
+        }
+      }
+
+      const contact = itinerary.contact_details;
+      const hasContactDetails = !!(
+        contact?.contact_name?.trim() ||
+        contact?.contact_phone?.trim() ||
+        contact?.contact_email?.trim() ||
+        contact?.notes?.trim()
+      );
+
+      if (hasContactDetails) {
+        const upsertContact = await supabase.from('itinerary_contact_details').upsert(
+          {
+            itinerary_id: itineraryId,
+            owner_id: ownerId,
+            contact_name: contact?.contact_name?.trim() || null,
+            contact_phone: contact?.contact_phone?.trim() || null,
+            contact_email: contact?.contact_email?.trim() || null,
+            notes: contact?.notes?.trim() || null
+          },
+          { onConflict: 'itinerary_id' }
+        );
+
+        if (upsertContact.error) {
+          warning = `Itinerary updated, but contact details failed to update: ${upsertContact.error.message}`;
+        }
+      } else {
+        const removeContact = await supabase.from('itinerary_contact_details').delete().eq('itinerary_id', itineraryId).eq('owner_id', ownerId);
+        if (removeContact.error) {
+          warning = `Itinerary updated, but clearing contact details failed: ${removeContact.error.message}`;
+        }
+      }
+
+      return { error: null, warning };
+    } catch {
+      return { error: 'Unexpected error while updating itinerary. Please try again.', warning: null };
+    }
+  }
+
   private withTimeout<T>(promise: PromiseLike<T>, timeoutMs = this.queryTimeoutMs): Promise<T> {
     return Promise.race([
       Promise.resolve(promise),

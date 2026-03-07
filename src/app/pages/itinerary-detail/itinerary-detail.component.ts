@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { RequestService } from '../../services/request.service';
 import { ItineraryService } from '../../services/itinerary.service';
@@ -9,7 +9,7 @@ import { Itinerary } from '../../models/itinerary.model';
 @Component({
   selector: 'app-itinerary-detail',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   template: `
     <div class="card shadow-sm">
       <div class="card-body">
@@ -26,6 +26,10 @@ import { Itinerary } from '../../models/itinerary.model';
           <p><strong>Destination:</strong> {{ itinerary.destination || '-' }}</p>
 
           <div class="alert alert-secondary" *ngIf="isSelfTrip">This is your trip.</div>
+
+          <a class="btn btn-outline-secondary me-2" *ngIf="isSelfTrip" [routerLink]="['/edit-itinerary', itinerary.id]">
+            Edit Itinerary
+          </a>
 
           <button class="btn btn-outline-danger me-2" *ngIf="isSelfTrip" [disabled]="loadingSend" (click)="deleteItinerary()">
             Delete Itinerary

@@ -17,6 +17,7 @@ export class AppComponent implements OnDestroy {
   currentUrl = '/';
   private recoveringState = false;
   private hiddenAt = 0;
+  private recoveryTimerId: number | null = null;
 
   constructor(
     public authService: AuthService,
@@ -92,10 +93,17 @@ export class AppComponent implements OnDestroy {
 
     this.recoveringState = true;
     const startedAt = Date.now();
+    this.recoveryTimerId = window.setTimeout(() => {
+      this.recoveringState = false;
+    }, 12_000);
 
     try {
       await this.authService.refreshSessionIfNeeded(forceRefresh);
     } finally {
+      if (this.recoveryTimerId) {
+        window.clearTimeout(this.recoveryTimerId);
+        this.recoveryTimerId = null;
+      }
       this.clearStaleOverlays();
       const elapsed = Date.now() - startedAt;
       if (elapsed > 3000) {

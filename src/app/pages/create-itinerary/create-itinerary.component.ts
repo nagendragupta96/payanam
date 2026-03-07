@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, ViewChild } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { ItineraryContactService } from '../../services/itinerary-contact.service';
 import { ItineraryService } from '../../services/itinerary.service';
 
 @Component({
@@ -12,7 +13,7 @@ import { ItineraryService } from '../../services/itinerary.service';
   template: `
     <div class="card shadow-sm">
       <div class="card-body">
-        <h2 class="h4 mb-3">Post Trip</h2>
+        <h2 class="h4 mb-3">{{ isEditMode ? 'Edit Itinerary' : 'Post Trip' }}</h2>
 
         <div #errorAlert tabindex="-1" class="alert alert-danger" *ngIf="errorMessage" role="alert">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
@@ -136,7 +137,7 @@ import { ItineraryService } from '../../services/itinerary.service';
 
           <button class="btn btn-primary mt-3" [disabled]="loading" type="submit">
             <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
-            Publish itinerary
+            {{ isEditMode ? 'Save Itinerary Changes' : 'Publish itinerary' }}
           </button>
         </form>
       </div>
@@ -152,8 +153,13 @@ export class CreateItineraryComponent {
   infoMessage = '';
   warningMessage = '';
   today = new Date().toISOString().slice(0, 10);
+  itineraryId = this.route.snapshot.paramMap.get('id') ?? '';
 
   private readonly airportCodePattern = /^[A-Z]{3,4}$/;
+
+  get isEditMode(): boolean {
+    return !!this.itineraryId;
+  }
 
   form = this.fb.group({
     origin_airport_code: ['', [Validators.required, Validators.pattern(this.airportCodePattern)]],
@@ -176,9 +182,15 @@ export class CreateItineraryComponent {
   constructor(
     private fb: FormBuilder,
     private itineraryService: ItineraryService,
+    private itineraryContactService: ItineraryContactService,
     private authService: AuthService,
-    private router: Router
-  ) {}
+    private router: Router,
+    private route: ActivatedRoute
+  ) {
+    if (this.isEditMode) {
+      void this.loadExistingItinerary();
+    }
+  }
 
   createLegGroup() {
     return this.fb.group({
@@ -188,6 +200,64 @@ export class CreateItineraryComponent {
       departure_at: [''],
       arrival_at: ['']
     });
+  }
+
+  private async loadExistingItinerary(): Promise<void> {
+    const ownerId = this.authService.currentSession?.user.id;
+    if (!ownerId || !this.itineraryId) return;
+
+    this.loading = true;
+    this.errorMessage = '';
+
+    try {
+      const result = await this.itineraryService.findById(this.itineraryId);
+      if (result.error || !result.data) {
+        this.errorMessage = result.error ?? 'Unable to load itinerary for editing.';
+        this.focusErrorAndFirstInvalidField();
+        return;
+      }
+
+      if (result.data.owner_id !== ownerId) {
+        this.errorMessage = 'You can only edit your own itineraries.';
+        this.focusErrorAndFirstInvalidField();
+        return;
+      }
+
+      const sortedLegs = [...(result.data.legs ?? [])].sort((a, b) => (a.leg_order ?? 0) - (b.leg_order ?? 0));
+      const legsArray = this.fb.array(
+        (sortedLegs.length ? sortedLegs : [this.createLegGroup().value]).map((leg: any) =>
+          this.fb.group({
+            origin_airport_code: [leg.origin_airport_code ?? '', [Validators.required, Validators.pattern(this.airportCodePattern)]],
+            destination_airport_code: [leg.destination_airport_code ?? '', [Validators.required, Validators.pattern(this.airportCodePattern)]],
+            flight_number: [leg.flight_number ?? '', Validators.required],
+            departure_at: [this.toDatetimeLocal(leg.departure_at)],
+            arrival_at: [this.toDatetimeLocal(leg.arrival_at)]
+          })
+        )
+      );
+      this.form.setControl('legs', legsArray);
+
+      this.form.patchValue({
+        origin_airport_code: result.data.origin_airport_code ?? '',
+        destination_airport_code: result.data.destination_airport_code ?? '',
+        destination: result.data.destination ?? '',
+        start_date: result.data.start_date ?? '',
+        end_date: result.data.end_date ?? result.data.start_date ?? '',
+        notes: result.data.notes ?? ''
+      });
+
+      const contact = await this.itineraryContactService.getByItinerary(this.itineraryId);
+      if (contact.data) {
+        this.form.patchValue({
+          contact_name: contact.data.contact_name ?? '',
+          contact_phone: contact.data.contact_phone ?? '',
+          contact_email: contact.data.contact_email ?? '',
+          contact_notes: contact.data.notes ?? ''
+        });
+      }
+    } finally {
+      this.loading = false;
+    }
   }
 
   addLeg() {
@@ -243,7 +313,7 @@ export class CreateItineraryComponent {
 
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.errorMessage = 'Please fix the highlighted required fields before publishing your trip.';
+      this.errorMessage = 'Please fix the highlighted required fields before saving your trip.';
       this.focusErrorAndFirstInvalidField();
       return;
     }
@@ -274,7 +344,7 @@ export class CreateItineraryComponent {
       return;
     }
 
-    const itinerary = {
+    const itineraryPayload = {
       origin_airport_code: normalize(value.origin_airport_code),
       destination_airport_code: normalize(value.destination_airport_code),
       destination: value.destination ?? null,
@@ -298,7 +368,10 @@ export class CreateItineraryComponent {
     };
 
     try {
-      const result = await this.itineraryService.createItinerary(itinerary, userId);
+      const result = this.isEditMode
+        ? await this.itineraryService.updateItinerary(this.itineraryId, itineraryPayload, userId)
+        : await this.itineraryService.createItinerary(itineraryPayload, userId);
+
       if (result.error) {
         this.errorMessage = result.error;
         this.focusErrorAndFirstInvalidField();
@@ -309,15 +382,32 @@ export class CreateItineraryComponent {
         this.warningMessage = result.warning;
       }
 
-      this.infoMessage = 'Trip saved successfully.';
+      this.infoMessage = this.isEditMode ? 'Itinerary updated successfully.' : 'Trip saved successfully.';
 
-      await this.router.navigate(['/my-trips']);
+      await this.router.navigate(['/my-trips'], {
+        queryParams: { info: this.infoMessage }
+      });
     } catch {
-      this.errorMessage = 'Unexpected error while saving itinerary.';
+      this.errorMessage = this.isEditMode
+        ? 'Unexpected error while updating itinerary.'
+        : 'Unexpected error while saving itinerary.';
       this.focusErrorAndFirstInvalidField();
     } finally {
       this.loading = false;
     }
+  }
+
+  private toDatetimeLocal(value: string | null | undefined): string {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (n: number) => `${n}`.padStart(2, '0');
+    const yyyy = date.getFullYear();
+    const mm = pad(date.getMonth() + 1);
+    const dd = pad(date.getDate());
+    const hh = pad(date.getHours());
+    const min = pad(date.getMinutes());
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
   }
 
   private focusErrorAndFirstInvalidField(): void {
