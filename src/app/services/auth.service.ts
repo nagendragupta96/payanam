@@ -128,6 +128,9 @@ export class AuthService implements OnDestroy {
             this.debug('Foreground validation recovered session after transient null');
             return;
           }
+
+          this.setAuthError('Connection interrupted. Reconnecting your session...');
+          return;
         }
 
         this.setSession(session);
@@ -177,6 +180,9 @@ export class AuthService implements OnDestroy {
           if (restored) {
             return;
           }
+
+          this.setAuthError('Connection interrupted. Reconnecting your session...');
+          return;
         }
 
         this.setSession(session);
@@ -393,6 +399,7 @@ export class AuthService implements OnDestroy {
   reportAuthFailure(operation: string, message: string): void {
     this.debug('reportAuthFailure', { operation, message });
     if (!this.isAuthFailureMessage(message)) return;
+    if (!this.currentSession?.user) return;
 
     if (this.authRecoveryInFlight) {
       this.debug('reportAuthFailure skipped (recovery already in flight)', { operation });
@@ -406,8 +413,9 @@ export class AuthService implements OnDestroy {
         return;
       }
 
-      // Final fallback for persistent auth failures.
-      await this.forceResetSession(`${operation}: ${message}`);
+      // Keep the current in-memory session and let explicit SIGNED_OUT events drive hard logout.
+      // This avoids destructive resets from transient, operation-level auth timing errors.
+      this.setAuthError('Connection interrupted. Reconnecting your session...');
     })().finally(() => {
       this.authRecoveryInFlight = null;
     });
@@ -541,14 +549,15 @@ export class AuthService implements OnDestroy {
   private isAuthFailureMessage(message: string): boolean {
     const text = (message || '').toLowerCase();
     return (
-      text.includes('jwt') ||
+      text.includes('jwt expired') ||
+      text.includes('invalid jwt') ||
       text.includes('not authenticated') ||
+      text.includes('auth session missing') ||
+      text.includes('invalid refresh token') ||
+      text.includes('refresh token not found') ||
+      text.includes('session expired') ||
       text.includes('invalid token') ||
-      text.includes('token') ||
-      text.includes('unauthorized') ||
-      text.includes('permission denied') ||
-      text.includes('row-level security') ||
-      text.includes('session')
+      text.includes('unauthorized')
     );
   }
 
