@@ -27,8 +27,6 @@ export class AuthService implements OnDestroy {
     }
 
     this.authStateSubscription = supabase.auth.onAuthStateChange(async (event, session) => {
-      this.setSession(session);
-
       if (!session?.user) {
         if (!this.explicitLogoutInProgress) {
           const restored = await this.restoreSessionAfterNullEvent();
@@ -37,11 +35,13 @@ export class AuthService implements OnDestroy {
           }
         }
 
+        this.setSession(null);
         await this.handleSignedOutState();
         this.explicitLogoutInProgress = false;
         return;
       }
 
+      this.setSession(session);
       this.explicitLogoutInProgress = false;
 
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
@@ -111,6 +111,13 @@ export class AuthService implements OnDestroy {
         }
 
         const session = data.session;
+        if (!session?.user && this.currentSession?.user && !this.explicitLogoutInProgress) {
+          const restored = await this.restoreSessionAfterNullEvent();
+          if (restored) {
+            return;
+          }
+        }
+
         this.setSession(session);
 
         if (!session?.user) {
