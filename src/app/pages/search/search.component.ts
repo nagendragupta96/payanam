@@ -132,7 +132,7 @@ import { ChatService } from '../../services/chat.service';
 
               <div *ngIf="isLoggedIn && isSelfTrip" class="alert alert-secondary mb-3">This is your trip.</div>
 
-              <div *ngIf="isLoggedIn && !isSelfTrip" class="d-flex flex-wrap gap-2 mb-3">
+              <div *ngIf="isLoggedIn && !isSelfTrip" class="d-flex flex-wrap gap-2 mb-2">
                 <button class="btn btn-primary" [disabled]="requestLoading" (click)="sendRequest('COMPANION')">
                   <span *ngIf="requestLoading" class="spinner-border spinner-border-sm me-2"></span>
                   {{ requestButtonLabel('COMPANION') }}
@@ -141,13 +141,15 @@ import { ChatService } from '../../services/chat.service';
                   {{ requestButtonLabel('ASSISTANCE') }}
                 </button>
                 <button
-                  *ngIf="hasContactDetails"
                   class="btn btn-outline-secondary"
-                  [disabled]="requestLoading || contactDetailsRequestStatus === 'PENDING' || contactDetailsRequestStatus === 'ACCEPTED'"
+                  [disabled]="requestLoading || !hasContactDetails || contactDetailsRequestStatus === 'PENDING' || contactDetailsRequestStatus === 'ACCEPTED'"
                   (click)="sendRequest('CONTACT_DETAILS')"
                 >
                   Request for Contact Details
                 </button>
+              </div>
+              <div *ngIf="isLoggedIn && !isSelfTrip && !hasContactDetails" class="alert alert-secondary py-2 mb-3">
+                This trip owner has not added contact details yet.
               </div>
 
               <h6>Contact Details</h6>
@@ -382,6 +384,11 @@ export class SearchComponent {
     this.tripInfo = '';
 
     try {
+      if (type === 'CONTACT_DETAILS' && !this.hasContactDetails) {
+        this.tripInfo = 'Contact details are not available for this trip yet.';
+        return;
+      }
+
       const result = await this.requestService.createOrGetRequest(this.selectedTrip.id!, userId, type);
       if (result.error || !result.data) {
         this.tripError = result.error ?? 'Unable to create request.';
