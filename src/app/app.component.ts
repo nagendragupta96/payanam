@@ -1,0 +1,154 @@
+import { Component, OnDestroy } from '@angular/core';
+import { NavigationEnd, NavigationStart, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { AuthService } from './services/auth.service';
+import { MessageNotificationService } from './services/message-notification.service';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.css'
+})
+export class AppComponent implements OnDestroy {
+  isNavOpen = false;
+  private readonly subscription: Subscription;
+  currentUrl = '/';
+  private recoveringState = false;
+  private pendingRecovery = false;
+  private pendingForceRecovery = false;
+  private hiddenAt = 0;
+  private recoveryTimerId: number | null = null;
+
+  constructor(
+    public authService: AuthService,
+    public messageNotificationService: MessageNotificationService,
+    private router: Router
+  ) {
+    this.currentUrl = this.router.url;
+
+    this.subscription = this.router.events.subscribe((event) => {
+      if (event instanceof NavigationStart) {
+        if (event.url.startsWith('/requests') || event.url.startsWith('/messages') || event.url.startsWith('/chat')) {
+          this.messageNotificationService.clearUnread();
+        }
+      }
+
+      if (event instanceof NavigationEnd) {
+        this.currentUrl = event.urlAfterRedirects;
+        this.clearStaleOverlays();
+      }
+    });
+
+    window.addEventListener('unhandledrejection', this.onUnhandledRejection);
+    window.addEventListener('focus', this.onWindowFocus);
+    window.addEventListener('online', this.onWindowOnline);
+    window.addEventListener('pageshow', this.onPageShow);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+
+    void this.recoverAppState(true);
+  }
+
+  get isLoggedIn(): boolean {
+    return !!this.authService.currentSession;
+  }
+
+  isSectionActive(prefix: string): boolean {
+    return this.currentUrl === prefix || this.currentUrl.startsWith(`${prefix}/`);
+  }
+
+  closeNav() {
+    this.isNavOpen = false;
+  }
+
+  async logout() {
+    this.closeNav();
+    await this.authService.logout();
+  }
+
+  private onUnhandledRejection = (event: PromiseRejectionEvent) => {
+    console.error('Unhandled promise rejection', event.reason);
+  };
+
+  private onWindowFocus = () => {
+    void this.recoverAppState();
+  };
+
+  private onWindowOnline = () => {
+    void this.recoverAppState(true);
+  };
+
+  private onPageShow = (event: PageTransitionEvent) => {
+    if (event.persisted) {
+      void this.recoverAppState(true);
+    }
+  };
+
+  private onVisibilityChange = () => {
+    if (document.hidden) {
+      this.hiddenAt = Date.now();
+      return;
+    }
+
+    const hiddenMs = this.hiddenAt ? Date.now() - this.hiddenAt : 0;
+    void this.recoverAppState(hiddenMs > 10_000);
+  };
+
+  private async recoverAppState(forceRefresh = false) {
+    if (this.recoveringState) {
+      this.pendingRecovery = true;
+      this.pendingForceRecovery = this.pendingForceRecovery || forceRefresh;
+      this.clearStaleOverlays();
+      return;
+    }
+
+    this.recoveringState = true;
+    const startedAt = Date.now();
+    this.recoveryTimerId = window.setTimeout(() => {
+      this.recoveringState = false;
+    }, 12_000);
+
+    try {
+      let shouldForce = forceRefresh;
+      do {
+        this.pendingRecovery = false;
+        this.pendingForceRecovery = false;
+        await this.authService.refreshSessionIfNeeded(shouldForce);
+        shouldForce = this.pendingForceRecovery;
+      } while (this.pendingRecovery);
+    } finally {
+      if (this.recoveryTimerId) {
+        window.clearTimeout(this.recoveryTimerId);
+        this.recoveryTimerId = null;
+      }
+      this.clearStaleOverlays();
+      const elapsed = Date.now() - startedAt;
+      if (elapsed > 3000) {
+        console.warn(`App state recovery took ${elapsed}ms`);
+      }
+      this.recoveringState = false;
+      this.pendingRecovery = false;
+      this.pendingForceRecovery = false;
+    }
+  }
+
+  private clearStaleOverlays() {
+    const hasTripModal = !!document.querySelector('.trip-modal.show, .modal.show');
+    if (hasTripModal) return;
+
+    document.querySelectorAll('.modal-backdrop').forEach((node) => node.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('overflow');
+    document.body.style.removeProperty('padding-right');
+  }
+
+  ngOnDestroy(): void {
+    this.subscription.unsubscribe();
+    window.removeEventListener('unhandledrejection', this.onUnhandledRejection);
+    window.removeEventListener('focus', this.onWindowFocus);
+    window.removeEventListener('online', this.onWindowOnline);
+    window.removeEventListener('pageshow', this.onPageShow);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+  }
+}
