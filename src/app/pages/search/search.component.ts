@@ -140,7 +140,12 @@ import { ChatService } from '../../services/chat.service';
                 <button class="btn btn-outline-primary" [disabled]="requestLoading" (click)="sendRequest('ASSISTANCE')">
                   {{ requestButtonLabel('ASSISTANCE') }}
                 </button>
-                <button *ngIf="hasContactDetails" class="btn btn-outline-secondary" [disabled]="requestLoading" (click)="sendRequest('CONTACT_DETAILS')">
+                <button
+                  *ngIf="hasContactDetails"
+                  class="btn btn-outline-secondary"
+                  [disabled]="requestLoading || contactDetailsRequestStatus === 'PENDING' || contactDetailsRequestStatus === 'ACCEPTED'"
+                  (click)="sendRequest('CONTACT_DETAILS')"
+                >
                   Request for Contact Details
                 </button>
               </div>
@@ -166,7 +171,13 @@ import { ChatService } from '../../services/chat.service';
                   <p class="mb-0"><strong>Notes:</strong> {{ contactForm.notes || '-' }}</p>
                 </div>
                 <ng-template #lockedContact>
-                  <div class="alert alert-warning mb-0">Contact details available after request approval.</div>
+                  <div class="alert alert-warning mb-0">
+                    <ng-container [ngSwitch]="contactDetailsRequestStatus">
+                      <span *ngSwitchCase="'PENDING'">Contact details request pending owner approval.</span>
+                      <span *ngSwitchCase="'REJECTED'">Contact details request was rejected. You can submit a new request.</span>
+                      <span *ngSwitchDefault>Contact details available after request approval.</span>
+                    </ng-container>
+                  </div>
                 </ng-template>
               </ng-template>
             </div>
@@ -253,6 +264,10 @@ export class SearchComponent {
 
   get hasContactDetails(): boolean {
     return !!this.selectedTrip && !!this.selectedTrip.has_contact_details;
+  }
+
+  get contactDetailsRequestStatus(): 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED' | null {
+    return this.latestRequestByType.CONTACT_DETAILS ?? null;
   }
 
   @HostListener('document:keydown.escape')
@@ -373,6 +388,16 @@ export class SearchComponent {
         return;
       }
 
+      const isContactDetails = type === 'CONTACT_DETAILS';
+      if (isContactDetails) {
+        this.latestRequestByType.CONTACT_DETAILS = result.data.status;
+        this.tripInfo = result.existing
+          ? 'Contact details request already exists.'
+          : 'Contact details request submitted.';
+        await this.loadContactDetails();
+        return;
+      }
+
       this.tripInfo = result.existing ? 'Request already exists. Opening details.' : 'Request created. Opening details.';
       await this.router.navigate(['/requests', result.data.id]);
       this.closeTrip();
@@ -422,20 +447,15 @@ export class SearchComponent {
     const userId = this.authService.currentSession?.user.id;
     if (!userId || this.isSelfTrip) return;
 
-    const companion = await this.requestService.getUserLatestRequestForItineraryByType(this.selectedTrip.id!, userId, 'COMPANION');
-    if (companion.data?.status) {
-      this.latestRequestByType.COMPANION = companion.data.status;
-    }
+    const [companion, assistance, contact] = await Promise.all([
+      this.requestService.getUserLatestRequestForItineraryByType(this.selectedTrip.id!, userId, 'COMPANION'),
+      this.requestService.getUserLatestRequestForItineraryByType(this.selectedTrip.id!, userId, 'ASSISTANCE'),
+      this.requestService.getUserLatestRequestForItineraryByType(this.selectedTrip.id!, userId, 'CONTACT_DETAILS')
+    ]);
 
-    const assistance = await this.requestService.getUserLatestRequestForItineraryByType(this.selectedTrip.id!, userId, 'ASSISTANCE');
-    if (assistance.data?.status) {
-      this.latestRequestByType.ASSISTANCE = assistance.data.status;
-    }
-
-    const contact = await this.requestService.getUserLatestRequestForItineraryByType(this.selectedTrip.id!, userId, 'CONTACT_DETAILS');
-    if (contact.data?.status) {
-      this.latestRequestByType.CONTACT_DETAILS = contact.data.status;
-    }
+    this.latestRequestByType.COMPANION = companion.data?.status;
+    this.latestRequestByType.ASSISTANCE = assistance.data?.status;
+    this.latestRequestByType.CONTACT_DETAILS = contact.data?.status;
   }
 
   requestButtonLabel(type: RequestType): string {

@@ -89,7 +89,10 @@ export class AppComponent implements OnDestroy {
   };
 
   private async recoverAppState(forceRefresh = false) {
-    if (this.recoveringState) return;
+    if (this.recoveringState) {
+      this.clearStaleOverlays();
+      return;
+    }
 
     this.recoveringState = true;
     const startedAt = Date.now();

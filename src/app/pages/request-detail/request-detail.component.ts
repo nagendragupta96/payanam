@@ -43,6 +43,13 @@ import { RequestRecord, RequestService } from '../../services/request.service';
               <span *ngIf="cancelling" class="spinner-border spinner-border-sm me-2"></span>
               Cancel Request
             </button>
+            <button *ngIf="isOwner && request.status === 'PENDING'" class="btn btn-success btn-sm" [disabled]="deciding" (click)="decide('ACCEPTED')">
+              <span *ngIf="deciding" class="spinner-border spinner-border-sm me-2"></span>
+              Accept
+            </button>
+            <button *ngIf="isOwner && request.status === 'PENDING'" class="btn btn-outline-danger btn-sm" [disabled]="deciding" (click)="decide('REJECTED')">
+              Reject
+            </button>
             <a *ngIf="request.status === 'ACCEPTED' && request.request_type !== 'CONTACT_DETAILS'" class="btn btn-outline-primary btn-sm" [routerLink]="['/messages']">Open Messages</a>
           </div>
         </div>
@@ -65,6 +72,7 @@ export class RequestDetailComponent {
   loading = false;
   savingMessage = false;
   cancelling = false;
+  deciding = false;
   errorMessage = '';
   infoMessage = '';
 
@@ -85,6 +93,10 @@ export class RequestDetailComponent {
 
   get isRequester(): boolean {
     return !!this.request && this.request.requester_id === this.authService.currentSession?.user.id;
+  }
+
+  get isOwner(): boolean {
+    return !!this.request && this.request.owner_id === this.authService.currentSession?.user.id;
   }
 
   requestTypeLabel(type: RequestRecord['request_type']): string {
@@ -168,6 +180,41 @@ export class RequestDetailComponent {
       await this.load();
     } finally {
       this.cancelling = false;
+    }
+  }
+
+  async decide(status: 'ACCEPTED' | 'REJECTED') {
+    if (!this.request || !this.isOwner || this.deciding || this.request.status !== 'PENDING') return;
+
+    const ownerId = this.authService.currentSession?.user.id;
+    if (!ownerId) return;
+
+    this.deciding = true;
+    this.errorMessage = '';
+    this.infoMessage = '';
+
+    try {
+      if (status === 'ACCEPTED') {
+        const { error } = await this.requestService.acceptRequest(this.request.id);
+        if (error) {
+          this.errorMessage = error;
+          return;
+        }
+        this.infoMessage = this.request.request_type === 'CONTACT_DETAILS'
+          ? 'Contact details request accepted.'
+          : 'Request accepted.';
+      } else {
+        const error = await this.requestService.updateRequestStatus(this.request.id, ownerId, 'REJECTED');
+        if (error) {
+          this.errorMessage = error;
+          return;
+        }
+        this.infoMessage = 'Request rejected.';
+      }
+
+      await this.load();
+    } finally {
+      this.deciding = false;
     }
   }
 }

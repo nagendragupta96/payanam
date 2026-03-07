@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { Session, User } from '@supabase/supabase-js';
@@ -6,13 +6,14 @@ import { supabase, supabaseConfigIssue } from './supabase-client';
 import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
-export class AuthService {
+export class AuthService implements OnDestroy {
   private readonly sessionSubject = new BehaviorSubject<Session | null>(null);
   readonly session$ = this.sessionSubject.asObservable();
   private sessionCheckInFlight: Promise<void> | null = null;
   private readonly sessionTimeoutMs = 8000;
   private lastSessionRefreshAt = 0;
   private readonly minSessionRefreshGapMs = 4000;
+  private authStateSubscription: { unsubscribe: () => void } | null = null;
 
   constructor(private router: Router) {
     void this.loadSession();
@@ -23,7 +24,7 @@ export class AuthService {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
 
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    this.authStateSubscription = supabase.auth.onAuthStateChange(async (event, session) => {
       this.setSession(session);
 
       if (!session?.user) {
@@ -34,8 +35,17 @@ export class AuthService {
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         await this.ensureProfileRecord(session.user);
       }
-    });
+    }).data.subscription;
 
+  }
+
+  ngOnDestroy(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('focus', this.onWindowFocus);
+      window.removeEventListener('online', this.onWindowOnline);
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
+    this.authStateSubscription?.unsubscribe();
   }
 
 

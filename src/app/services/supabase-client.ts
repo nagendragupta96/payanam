@@ -1,29 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
 
-const inMemoryLocks = new Map<string, Promise<void>>();
-
-async function lockInternally<T>(name: string, _acquireTimeout: number, fn: () => Promise<T>): Promise<T> {
-  const prior = inMemoryLocks.get(name) ?? Promise.resolve();
-
-  let release!: () => void;
-  const current = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-
-  inMemoryLocks.set(name, prior.then(() => current));
-  await prior;
-
-  try {
-    return await fn();
-  } finally {
-    release();
-    if (inMemoryLocks.get(name) === current) {
-      inMemoryLocks.delete(name);
-    }
-  }
-}
-
 function getSupabaseConfigIssue(): string | null {
   const url = environment.supabaseUrl?.trim() ?? '';
   const anonKey = environment.supabaseAnonKey?.trim() ?? '';
@@ -42,6 +19,8 @@ function getSupabaseConfigIssue(): string | null {
 export const supabaseConfigIssue = getSupabaseConfigIssue();
 export const supabase = createClient(environment.supabaseUrl, environment.supabaseAnonKey, {
   auth: {
-    lock: lockInternally
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
   }
 });
