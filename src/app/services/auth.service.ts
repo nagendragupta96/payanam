@@ -74,7 +74,12 @@ export class AuthService implements OnDestroy {
     }
 
     this.lastSessionRefreshAt = now;
-    await this.loadSession();
+    try {
+      await this.loadSession();
+    } catch {
+      // Allow near-immediate retry after transient failures on tab/app resume.
+      this.lastSessionRefreshAt = 0;
+    }
   }
 
   getUserLabel(profile: any, fallbackEmail?: string): string {
@@ -237,9 +242,16 @@ export class AuthService implements OnDestroy {
   }
 
   async logout(): Promise<void> {
-    await supabase.auth.signOut();
-    this.setSession(null);
-    await this.router.navigate(['/auth']);
+    try {
+      await this.withTimeout(supabase.auth.signOut(), this.sessionTimeoutMs);
+    } catch {
+      // Even if signOut request fails, clear local app auth state to avoid a stuck UI.
+    } finally {
+      this.setSession(null);
+      this.sessionCheckInFlight = null;
+      this.lastSessionRefreshAt = 0;
+      await this.router.navigate(['/auth']);
+    }
   }
 
   private async verifySignupProvisioning(userId: string): Promise<string | null> {

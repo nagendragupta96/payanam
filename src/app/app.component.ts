@@ -16,6 +16,8 @@ export class AppComponent implements OnDestroy {
   private readonly subscription: Subscription;
   currentUrl = '/';
   private recoveringState = false;
+  private pendingRecovery = false;
+  private pendingForceRecovery = false;
   private hiddenAt = 0;
   private recoveryTimerId: number | null = null;
 
@@ -90,6 +92,8 @@ export class AppComponent implements OnDestroy {
 
   private async recoverAppState(forceRefresh = false) {
     if (this.recoveringState) {
+      this.pendingRecovery = true;
+      this.pendingForceRecovery = this.pendingForceRecovery || forceRefresh;
       this.clearStaleOverlays();
       return;
     }
@@ -101,7 +105,13 @@ export class AppComponent implements OnDestroy {
     }, 12_000);
 
     try {
-      await this.authService.refreshSessionIfNeeded(forceRefresh);
+      let shouldForce = forceRefresh;
+      do {
+        this.pendingRecovery = false;
+        this.pendingForceRecovery = false;
+        await this.authService.refreshSessionIfNeeded(shouldForce);
+        shouldForce = this.pendingForceRecovery;
+      } while (this.pendingRecovery);
     } finally {
       if (this.recoveryTimerId) {
         window.clearTimeout(this.recoveryTimerId);
@@ -113,6 +123,8 @@ export class AppComponent implements OnDestroy {
         console.warn(`App state recovery took ${elapsed}ms`);
       }
       this.recoveringState = false;
+      this.pendingRecovery = false;
+      this.pendingForceRecovery = false;
     }
   }
 
