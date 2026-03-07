@@ -36,13 +36,21 @@ import { RequestRecord, RequestService } from '../../services/request.service';
                 </div>
               </div>
               <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-success" *ngIf="req.status === 'PENDING'" [disabled]="acceptingId === req.id" (click)="accept(req.id)">
+                <button class="btn btn-sm btn-success" *ngIf="req.status === 'PENDING' && !isContactDetailsRequest(req)" [disabled]="acceptingId === req.id" (click)="accept(req.id)">
                   <span *ngIf="acceptingId === req.id" class="spinner-border spinner-border-sm me-1"></span>
                   Accept
                 </button>
-                <button class="btn btn-sm btn-outline-danger" *ngIf="req.status === 'PENDING'" [disabled]="rejectingId === req.id" (click)="reject(req.id)">
+                <button class="btn btn-sm btn-outline-danger" *ngIf="req.status === 'PENDING' && !isContactDetailsRequest(req)" [disabled]="rejectingId === req.id" (click)="reject(req.id)">
                   <span *ngIf="rejectingId === req.id" class="spinner-border spinner-border-sm me-1"></span>
                   Reject
+                </button>
+                <button class="btn btn-sm btn-success" *ngIf="req.status === 'PENDING' && isContactDetailsRequest(req)" [disabled]="acceptingId === req.id" (click)="accept(req.id)">
+                  <span *ngIf="acceptingId === req.id" class="spinner-border spinner-border-sm me-1"></span>
+                  Accept Contact Details
+                </button>
+                <button class="btn btn-sm btn-outline-danger" *ngIf="req.status === 'PENDING' && isContactDetailsRequest(req)" [disabled]="rejectingId === req.id" (click)="reject(req.id)">
+                  <span *ngIf="rejectingId === req.id" class="spinner-border spinner-border-sm me-1"></span>
+                  Reject Contact Details
                 </button>
                 <button class="btn btn-sm btn-outline-primary" (click)="openRequest(req.id)">Details</button>
                 <button class="btn btn-sm btn-outline-primary" *ngIf="req.status === 'ACCEPTED' && req.request_type !== 'CONTACT_DETAILS'" (click)="openMessages(req.id)">Messages</button>
@@ -107,6 +115,10 @@ export class RequestsInboxComponent {
     if (type === 'CONTACT_DETAILS') return 'Contact Details';
     if (type === 'ASSISTANCE') return 'Assistance';
     return 'Companion';
+  }
+
+  isContactDetailsRequest(request: RequestRecord): boolean {
+    return request.request_type === 'CONTACT_DETAILS';
   }
 
   async load() {
