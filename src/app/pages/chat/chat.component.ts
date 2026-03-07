@@ -58,7 +58,7 @@ interface ThreadView extends ChatThread {
               <div *ngIf="!selectedThreadId" class="text-muted">Select a conversation to view messages.</div>
 
               <ng-container *ngIf="selectedThreadId">
-                <div class="fw-semibold mb-2">{{ selectedConversationTitle }}</div>
+                <div class="conversation-header mb-2">{{ selectedConversationTitle }}</div>
 
                 <div class="chat-list d-flex flex-column gap-2 mb-3" style="min-height: 280px; max-height: 50vh; overflow:auto;">
                   <div *ngFor="let msg of messages" class="d-flex" [class.justify-content-end]="msg.sender_id === currentUserId">
@@ -89,6 +89,19 @@ interface ThreadView extends ChatThread {
       .chat-bubble.self { background: #d9ecff; }
       .chat-bubble.other { background: #f1f3f5; }
       .inbox-panel { max-height: 70vh; overflow: auto; }
+
+      .conversation-header {
+        background: #e9f0f7;
+        color: #1f2937;
+        border: 1px solid #d7e0eb;
+        border-radius: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        font-weight: 600;
+      }
+
+      .list-group-item.active .text-muted {
+        color: rgba(255, 255, 255, 0.9) !important;
+      }
     `
   ]
 })

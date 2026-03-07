@@ -32,7 +32,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
                 <div class="small text-muted">{{ requestTypeLabel(req.request_type) }} • {{ req.status }}</div>
                 <div class="small">
                   {{ req.itineraries?.origin_airport_code || '-' }} → {{ req.itineraries?.destination_airport_code || '-' }}
-                  ({{ req.itineraries?.start_date || '-' }} → {{ req.itineraries?.end_date || '-' }})
+                  (<span class="date-cell">{{ req.itineraries?.start_date || '-' }} → {{ req.itineraries?.end_date || '-' }}</span>)
                 </div>
               </div>
               <div class="d-flex gap-2">
@@ -60,7 +60,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
                 <div class="small text-muted">{{ requestTypeLabel(req.request_type) }} • {{ req.status }}</div>
                 <div class="small">
                   {{ req.itineraries?.origin_airport_code || '-' }} → {{ req.itineraries?.destination_airport_code || '-' }}
-                  ({{ req.itineraries?.start_date || '-' }} → {{ req.itineraries?.end_date || '-' }})
+                  (<span class="date-cell">{{ req.itineraries?.start_date || '-' }} → {{ req.itineraries?.end_date || '-' }}</span>)
                 </div>
               </div>
               <div class="d-flex gap-2">

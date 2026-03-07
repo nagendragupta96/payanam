@@ -17,13 +17,16 @@ export class AuthService {
   constructor(private router: Router) {
     void this.loadSession();
 
-    supabase.auth.onAuthStateChange(async (_event, session) => {
+    supabase.auth.onAuthStateChange(async (event, session) => {
       this.setSession(session);
 
-      if (session?.user) {
-        await this.ensureProfileRecord(session.user);
-      } else {
+      if (!session?.user) {
         await this.handleSignedOutState();
+        return;
+      }
+
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        await this.ensureProfileRecord(session.user);
       }
     });
 

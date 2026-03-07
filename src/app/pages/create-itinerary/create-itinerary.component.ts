@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, ElementRef, ViewChild } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -14,37 +14,51 @@ import { ItineraryService } from '../../services/itinerary.service';
       <div class="card-body">
         <h2 class="h4 mb-3">Post Trip</h2>
 
-        <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
+        <div #errorAlert tabindex="-1" class="alert alert-danger" *ngIf="errorMessage" role="alert">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
         <div class="alert alert-warning" *ngIf="warningMessage">{{ warningMessage }}</div>
 
-        <form [formGroup]="form" (ngSubmit)="submit()">
+        <form #tripFormEl [formGroup]="form" (ngSubmit)="submit()" novalidate>
+          <h3 class="h6 mb-2">Basic Trip Information</h3>
+
           <div class="row g-2 mb-2">
             <div class="col-md-6">
-              <label class="form-label">Origin Airport Code</label>
-              <input class="form-control" formControlName="origin_airport_code" placeholder="e.g. DXB" />
+              <label class="form-label" for="originAirport">Origin Airport Code <span class="text-danger">*</span></label>
+              <input id="originAirport" class="form-control text-uppercase" formControlName="origin_airport_code" placeholder="e.g. DXB" maxlength="4" (input)="uppercaseControl('origin_airport_code')" [class.is-invalid]="isFieldInvalid('origin_airport_code')" />
+              <div class="invalid-feedback" *ngIf="isFieldInvalid('origin_airport_code')">Origin airport code is required (3–4 letters).</div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Destination Airport Code</label>
-              <input class="form-control" formControlName="destination_airport_code" placeholder="e.g. HND" />
+              <label class="form-label" for="destinationAirport">Destination Airport Code <span class="text-danger">*</span></label>
+              <input id="destinationAirport" class="form-control text-uppercase" formControlName="destination_airport_code" placeholder="e.g. HND" maxlength="4" (input)="uppercaseControl('destination_airport_code')" [class.is-invalid]="isFieldInvalid('destination_airport_code')" />
+              <div class="invalid-feedback" *ngIf="isFieldInvalid('destination_airport_code')">Destination airport code is required (3–4 letters).</div>
             </div>
           </div>
 
-          <input class="form-control mb-2" formControlName="destination" placeholder="Destination city/country" />
+          <div class="mb-2">
+            <label class="form-label" for="destinationLabel">Destination (Optional)</label>
+            <input id="destinationLabel" class="form-control" formControlName="destination" placeholder="Destination city/country" />
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label" for="tripNotes">Trip Notes (Optional)</label>
+            <textarea id="tripNotes" rows="2" class="form-control" formControlName="notes" placeholder="Any additional travel notes"></textarea>
+          </div>
 
           <div class="row g-2 mb-2">
             <div class="col-md-6">
-              <label class="form-label">Start Date</label>
-              <input class="form-control" type="date" formControlName="start_date" [attr.min]="today" />
+              <label class="form-label" for="startDate">Start Date <span class="text-danger">*</span></label>
+              <input id="startDate" class="form-control date-input" type="date" formControlName="start_date" [attr.min]="today" [class.is-invalid]="isFieldInvalid('start_date')" (change)="closeNativePicker($event)" />
+              <div class="invalid-feedback" *ngIf="isFieldInvalid('start_date')">Start date is required.</div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">End Date</label>
-              <input class="form-control" type="date" formControlName="end_date" [attr.min]="today" />
+              <label class="form-label" for="endDate">End Date <span class="text-danger">*</span></label>
+              <input id="endDate" class="form-control date-input" type="date" formControlName="end_date" [attr.min]="today" [class.is-invalid]="isFieldInvalid('end_date')" (change)="closeNativePicker($event)" />
+              <div class="invalid-feedback" *ngIf="isFieldInvalid('end_date')">End date is required.</div>
             </div>
           </div>
 
           <h3 class="h6 mt-3 mb-2">Itinerary Legs</h3>
-          <p class="small text-muted mb-2">Add one or more flight legs for this trip.</p>
+          <p class="small text-muted mb-2">Fields marked with <span class="text-danger">*</span> are mandatory for each leg.</p>
 
           <div formArrayName="legs">
             <div *ngFor="let leg of legs.controls; index as i" [formGroupName]="i" class="border rounded p-3 mb-2 bg-light">
@@ -59,16 +73,35 @@ import { ItineraryService } from '../../services/itinerary.service';
                   Delete
                 </button>
               </div>
+
               <div class="row g-2">
-                <div class="col-md-6"><input class="form-control" formControlName="origin_airport_code" placeholder="Origin airport code" /></div>
-                <div class="col-md-6"><input class="form-control" formControlName="destination_airport_code" placeholder="Destination airport code" /></div>
+                <div class="col-md-6">
+                  <label class="form-label">Leg {{ i + 1 }} Origin Airport Code <span class="text-danger">*</span></label>
+                  <input class="form-control text-uppercase" formControlName="origin_airport_code" placeholder="Origin airport code" maxlength="4" (input)="uppercaseLegControl(i, 'origin_airport_code')" [class.is-invalid]="isLegFieldInvalid(i, 'origin_airport_code')" />
+                  <div class="invalid-feedback" *ngIf="isLegFieldInvalid(i, 'origin_airport_code')">Origin airport code is required.</div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Leg {{ i + 1 }} Destination Airport Code <span class="text-danger">*</span></label>
+                  <input class="form-control text-uppercase" formControlName="destination_airport_code" placeholder="Destination airport code" maxlength="4" (input)="uppercaseLegControl(i, 'destination_airport_code')" [class.is-invalid]="isLegFieldInvalid(i, 'destination_airport_code')" />
+                  <div class="invalid-feedback" *ngIf="isLegFieldInvalid(i, 'destination_airport_code')">Destination airport code is required.</div>
+                </div>
               </div>
               <div class="row g-2 mt-1">
-                <div class="col-md-12"><input class="form-control" formControlName="flight_number" placeholder="Flight Number (e.g. QR738)" /></div>
+                <div class="col-md-12">
+                  <label class="form-label">Flight Number <span class="text-danger">*</span></label>
+                  <input class="form-control text-uppercase" formControlName="flight_number" placeholder="Flight Number (e.g. QR738)" [class.is-invalid]="isLegFieldInvalid(i, 'flight_number')" />
+                  <div class="invalid-feedback" *ngIf="isLegFieldInvalid(i, 'flight_number')">Flight number is required.</div>
+                </div>
               </div>
               <div class="row g-2 mt-1">
-                <div class="col-md-6"><input class="form-control" type="datetime-local" formControlName="departure_at" /></div>
-                <div class="col-md-6"><input class="form-control" type="datetime-local" formControlName="arrival_at" /></div>
+                <div class="col-md-6">
+                  <label class="form-label">Departure Date & Time (Optional)</label>
+                  <input class="form-control date-input" type="datetime-local" formControlName="departure_at" (change)="closeNativePicker($event)" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Arrival Date & Time (Optional)</label>
+                  <input class="form-control date-input" type="datetime-local" formControlName="arrival_at" (change)="closeNativePicker($event)" />
+                </div>
               </div>
             </div>
           </div>
@@ -78,23 +111,23 @@ import { ItineraryService } from '../../services/itinerary.service';
           <div class="card border-0 bg-light mt-3">
             <div class="card-body">
               <h3 class="h6 mb-3">Contact Details (Optional)</h3>
-              <p class="small text-muted mb-3">These details are attached to this trip and can be shared per request access rules.</p>
+              <p class="small text-muted mb-3">These details are attached to this trip and can be shared only through approved contact details requests.</p>
 
               <div class="row g-2">
                 <div class="col-md-6">
-                  <label class="form-label">Contact Name</label>
+                  <label class="form-label">Contact Name (Optional)</label>
                   <input class="form-control" formControlName="contact_name" placeholder="Name" />
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Contact Phone</label>
+                  <label class="form-label">Contact Phone (Optional)</label>
                   <input class="form-control" formControlName="contact_phone" placeholder="Phone" />
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Contact Email</label>
+                  <label class="form-label">Contact Email (Optional)</label>
                   <input class="form-control" formControlName="contact_email" placeholder="Email" />
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Notes</label>
+                  <label class="form-label">Contact Notes (Optional)</label>
                   <input class="form-control" formControlName="contact_notes" placeholder="Optional notes" />
                 </div>
               </div>
@@ -111,6 +144,9 @@ import { ItineraryService } from '../../services/itinerary.service';
   `
 })
 export class CreateItineraryComponent {
+  @ViewChild('errorAlert') errorAlert?: ElementRef<HTMLElement>;
+  @ViewChild('tripFormEl') tripFormEl?: ElementRef<HTMLFormElement>;
+
   loading = false;
   errorMessage = '';
   infoMessage = '';
@@ -163,32 +199,77 @@ export class CreateItineraryComponent {
     this.legs.removeAt(index);
   }
 
+  uppercaseControl(field: string): void {
+    const control = this.form.get(field);
+    if (!control) return;
+    const value = `${control.value ?? ''}`.toUpperCase();
+    if (value !== control.value) {
+      control.setValue(value, { emitEvent: false });
+    }
+  }
+
+  uppercaseLegControl(index: number, field: 'origin_airport_code' | 'destination_airport_code'): void {
+    const group = this.legs.at(index);
+    const control = group.get(field);
+    if (!control) return;
+    const value = `${control.value ?? ''}`.toUpperCase();
+    if (value !== control.value) {
+      control.setValue(value, { emitEvent: false });
+    }
+  }
+
+  closeNativePicker(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    input?.blur();
+  }
+
+  isFieldInvalid(name: string): boolean {
+    const control = this.form.get(name);
+    return !!control && control.invalid && (control.dirty || control.touched);
+  }
+
+  isLegFieldInvalid(index: number, name: string): boolean {
+    const control = this.legs.at(index).get(name);
+    return !!control && control.invalid && (control.dirty || control.touched);
+  }
+
   async submit() {
     const userId = this.authService.currentSession?.user.id;
-    if (!userId || this.form.invalid || this.loading) return;
+    if (!userId || this.loading) return;
 
-    this.loading = true;
     this.errorMessage = '';
     this.infoMessage = '';
     this.warningMessage = '';
+
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.errorMessage = 'Please fix the highlighted required fields before publishing your trip.';
+      this.focusErrorAndFirstInvalidField();
+      return;
+    }
+
+    this.loading = true;
 
     const value = this.form.getRawValue();
     const normalize = (code: string | null | undefined) => (code ?? '').replace(/\s+/g, '').toUpperCase();
     const normalizeFlightNumber = (input: string | null | undefined) => (input ?? '').replace(/\s+/g, '').toUpperCase();
     if ((value.start_date ?? '') < this.today) {
       this.errorMessage = 'Start Date cannot be in the past.';
+      this.focusErrorAndFirstInvalidField();
       this.loading = false;
       return;
     }
 
     if ((value.end_date ?? '') < this.today) {
       this.errorMessage = 'End Date cannot be in the past.';
+      this.focusErrorAndFirstInvalidField();
       this.loading = false;
       return;
     }
 
     if ((value.end_date ?? '') < (value.start_date ?? '')) {
       this.errorMessage = 'End Date must be on or after Start Date.';
+      this.focusErrorAndFirstInvalidField();
       this.loading = false;
       return;
     }
@@ -220,6 +301,7 @@ export class CreateItineraryComponent {
       const result = await this.itineraryService.createItinerary(itinerary, userId);
       if (result.error) {
         this.errorMessage = result.error;
+        this.focusErrorAndFirstInvalidField();
         return;
       }
 
@@ -232,8 +314,19 @@ export class CreateItineraryComponent {
       await this.router.navigate(['/my-trips']);
     } catch {
       this.errorMessage = 'Unexpected error while saving itinerary.';
+      this.focusErrorAndFirstInvalidField();
     } finally {
       this.loading = false;
     }
+  }
+
+  private focusErrorAndFirstInvalidField(): void {
+    window.setTimeout(() => {
+      this.errorAlert?.nativeElement.focus();
+      this.errorAlert?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      const firstInvalid = this.tripFormEl?.nativeElement.querySelector('.ng-invalid') as HTMLElement | null;
+      firstInvalid?.focus();
+    }, 0);
   }
 }

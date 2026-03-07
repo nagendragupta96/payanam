@@ -31,7 +31,7 @@ import { ItineraryService } from '../../services/itinerary.service';
               <tr *ngFor="let trip of trips">
                 <td>{{ trip.origin_airport_code }} → {{ trip.destination_airport_code }}</td>
                 <td>{{ trip.destination || '-' }}</td>
-                <td>{{ trip.start_date }} → {{ trip.end_date || 'One way' }}</td>
+                <td class="date-cell">{{ trip.start_date }} → {{ trip.end_date || 'One way' }}</td>
                 <td>
                   <a class="btn btn-sm btn-outline-primary me-2" [routerLink]="['/itinerary', trip.id]">View</a>
                   <button class="btn btn-sm btn-outline-danger" (click)="deleteTrip(trip.id!)">Delete</button>

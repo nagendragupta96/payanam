@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener } from '@angular/core';
+import { Component, ElementRef, HostListener, ViewChild } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Itinerary } from '../../models/itinerary.model';
@@ -16,35 +16,35 @@ import { ChatService } from '../../services/chat.service';
   template: `
     <h2 class="mb-3">Search Trips</h2>
 
-    <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
+    <div #errorAlert tabindex="-1" class="alert alert-danger" *ngIf="errorMessage" role="alert">{{ errorMessage }}</div>
     <div class="alert alert-info" *ngIf="infoMessage">{{ infoMessage }}</div>
 
     <form [formGroup]="form" (ngSubmit)="search()" class="card card-body mb-4">
       <div class="row g-3">
         <div class="col-md-6 col-lg-3">
           <label class="form-label">Origin Airport Code *</label>
-          <input class="form-control" formControlName="originAirportCode" placeholder="e.g. DXB" />
+          <input class="form-control text-uppercase" formControlName="originAirportCode" placeholder="e.g. DXB" maxlength="4" (input)="uppercaseSearchControl('originAirportCode')" />
         </div>
         <div class="col-md-6 col-lg-3">
           <label class="form-label">Destination Airport Code *</label>
-          <input class="form-control" formControlName="destinationAirportCode" placeholder="e.g. HND" />
+          <input class="form-control text-uppercase" formControlName="destinationAirportCode" placeholder="e.g. HND" maxlength="4" (input)="uppercaseSearchControl('destinationAirportCode')" />
         </div>
         <div class="col-md-6 col-lg-3">
           <label class="form-label">Start Date *</label>
-          <input type="date" class="form-control" formControlName="searchStartDate" />
+          <input type="date" class="form-control date-input" formControlName="searchStartDate" (change)="closeNativePicker($event)" />
         </div>
         <div class="col-md-6 col-lg-3">
           <label class="form-label">End Date *</label>
-          <input type="date" class="form-control" formControlName="searchEndDate" />
+          <input type="date" class="form-control date-input" formControlName="searchEndDate" (change)="closeNativePicker($event)" />
         </div>
 
         <div class="col-md-6">
           <label class="form-label">Stop1 Airport Code (optional)</label>
-          <input class="form-control" formControlName="stop1AirportCode" placeholder="Matches leg_order=1 destination" />
+          <input class="form-control text-uppercase" formControlName="stop1AirportCode" placeholder="Matches leg_order=1 destination" maxlength="4" (input)="uppercaseSearchControl('stop1AirportCode')" />
         </div>
         <div class="col-md-6">
           <label class="form-label">Stop2 Airport Code (optional)</label>
-          <input class="form-control" formControlName="stop2AirportCode" placeholder="Matches leg_order=2 destination" />
+          <input class="form-control text-uppercase" formControlName="stop2AirportCode" placeholder="Matches leg_order=2 destination" maxlength="4" (input)="uppercaseSearchControl('stop2AirportCode')" />
         </div>
       </div>
 
@@ -62,6 +62,7 @@ import { ChatService } from '../../services/chat.service';
           <table class="table table-hover table-striped align-middle mb-0">
             <thead class="table-light">
               <tr>
+                <th>Actions</th>
                 <th>Origin</th>
                 <th>Destination</th>
                 <th>Start Date</th>
@@ -70,25 +71,24 @@ import { ChatService } from '../../services/chat.service';
                 <th>Stop2</th>
                 <th>Flight Number(s)</th>
                 <th>Posted By</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let item of results">
-                <td>{{ item.origin_airport_code }}</td>
-                <td>{{ item.destination_airport_code }}</td>
-                <td>{{ item.start_date }}</td>
-                <td>{{ item.end_date || 'One way' }}</td>
-                <td>{{ stopAirport(item, 0) }}</td>
-                <td>{{ stopAirport(item, 1) }}</td>
-                <td>{{ flightNumbers(item) }}</td>
-                <td>{{ ownerLabel(item.owner_id) }}</td>
                 <td>
                   <button class="btn btn-outline-primary btn-sm" [disabled]="loadingTripId === item.id" (click)="openTrip(item)">
                     <span *ngIf="loadingTripId === item.id" class="spinner-border spinner-border-sm me-1"></span>
                     View
                   </button>
                 </td>
+                <td>{{ item.origin_airport_code }}</td>
+                <td>{{ item.destination_airport_code }}</td>
+                <td class="date-cell">{{ item.start_date }}</td>
+                <td class="date-cell">{{ item.end_date || 'One way' }}</td>
+                <td>{{ stopAirport(item, 0) }}</td>
+                <td>{{ stopAirport(item, 1) }}</td>
+                <td>{{ flightNumbers(item) }}</td>
+                <td>{{ ownerLabel(item.owner_id) }}</td>
               </tr>
             </tbody>
           </table>
@@ -141,7 +141,7 @@ import { ChatService } from '../../services/chat.service';
                   {{ requestButtonLabel('ASSISTANCE') }}
                 </button>
                 <button *ngIf="hasContactDetails" class="btn btn-outline-secondary" [disabled]="requestLoading" (click)="sendRequest('CONTACT_DETAILS')">
-                  Request for Contact Details
+                  Contact Details Request
                 </button>
               </div>
 
@@ -186,6 +186,7 @@ import { ChatService } from '../../services/chat.service';
   ]
 })
 export class SearchComponent {
+  @ViewChild('errorAlert') errorAlert?: ElementRef<HTMLElement>;
   errorMessage = '';
   infoMessage = 'Use airport codes and date range to search.';
   results: Itinerary[] = [];
@@ -266,6 +267,7 @@ export class SearchComponent {
   async search() {
     if (this.form.invalid || this.loadingSearch) {
       this.errorMessage = 'Origin, destination, start date and end date are required.';
+      this.focusTopError();
       return;
     }
 
@@ -287,10 +289,16 @@ export class SearchComponent {
 
       this.results = data;
       this.infoMessage = `${data.length} itinerary(ies) found.`;
-      if (error) this.errorMessage = error;
+      if (error) {
+        this.errorMessage = error;
+        this.focusTopError();
+      }
 
       const ownerIds = [...new Set(data.map((d) => d.owner_id).filter(Boolean))] as string[];
       this.ownerLabels = await this.chatService.getProfileNames(ownerIds);
+    } catch {
+      this.errorMessage = 'Search failed. Please try again.';
+      this.focusTopError();
     } finally {
       this.loadingSearch = false;
     }
@@ -329,6 +337,12 @@ export class SearchComponent {
     } finally {
       this.loadingTripId = '';
     }
+  }
+
+
+  closeNativePicker(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    input?.blur();
   }
 
   closeTrip() {
@@ -426,9 +440,25 @@ export class SearchComponent {
   requestButtonLabel(type: RequestType): string {
     if (type === 'COMPANION') return 'Companion Request';
     if (type === 'ASSISTANCE') return 'Assistance Request';
-    return 'Request for Contact Details';
+    return 'Contact Details Request';
   }
 
+
+  uppercaseSearchControl(controlName: 'originAirportCode' | 'destinationAirportCode' | 'stop1AirportCode' | 'stop2AirportCode'): void {
+    const control = this.form.get(controlName);
+    if (!control) return;
+    const value = `${control.value ?? ''}`.toUpperCase();
+    if (value !== control.value) {
+      control.setValue(value, { emitEvent: false });
+    }
+  }
+
+  private focusTopError(): void {
+    window.setTimeout(() => {
+      this.errorAlert?.nativeElement.focus();
+      this.errorAlert?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  }
   async saveContactDetails() {
     if (!this.selectedTrip || !this.isSelfTrip || this.savingContact) return;
 

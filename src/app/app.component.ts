@@ -25,7 +25,7 @@ export class AppComponent implements OnDestroy {
   ) {
     this.currentUrl = this.router.url;
 
-    this.subscription = this.router.events.subscribe(async (event) => {
+    this.subscription = this.router.events.subscribe((event) => {
       if (event instanceof NavigationStart) {
         if (event.url.startsWith('/requests') || event.url.startsWith('/messages') || event.url.startsWith('/chat')) {
           this.messageNotificationService.clearUnread();
@@ -41,6 +41,7 @@ export class AppComponent implements OnDestroy {
     window.addEventListener('unhandledrejection', this.onUnhandledRejection);
     window.addEventListener('focus', this.onWindowFocus);
     window.addEventListener('online', this.onWindowOnline);
+    window.addEventListener('pageshow', this.onPageShow);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
 
     void this.recoverAppState(true);
@@ -68,6 +69,12 @@ export class AppComponent implements OnDestroy {
 
   private onWindowOnline = () => {
     void this.recoverAppState(true);
+  };
+
+  private onPageShow = (event: PageTransitionEvent) => {
+    if (event.persisted) {
+      void this.recoverAppState(true);
+    }
   };
 
   private onVisibilityChange = () => {
@@ -113,6 +120,7 @@ export class AppComponent implements OnDestroy {
     window.removeEventListener('unhandledrejection', this.onUnhandledRejection);
     window.removeEventListener('focus', this.onWindowFocus);
     window.removeEventListener('online', this.onWindowOnline);
+    window.removeEventListener('pageshow', this.onPageShow);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
   }
 }
