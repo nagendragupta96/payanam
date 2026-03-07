@@ -1,0 +1,43 @@
+<div class="app-shell min-vh-100">
+  <nav class="navbar navbar-expand-lg bg-white border-bottom shadow-sm sticky-top">
+    <div class="container">
+      <a routerLink="/home" class="navbar-brand fw-semibold d-flex align-items-center gap-2" (click)="closeNav()">
+        <span class="brand-icon" aria-hidden="true">✈️</span>
+        <span>Payanam</span>
+      </a>
+
+      <button class="navbar-toggler" type="button" (click)="isNavOpen = !isNavOpen">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" [class.show]="isNavOpen">
+        <div class="navbar-nav ms-lg-auto py-2 py-lg-0 align-items-lg-center gap-1">
+          <a routerLink="/home" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="nav-link px-3" (click)="closeNav()">Home</a>
+          <a routerLink="/search" routerLinkActive="active" class="nav-link px-3" (click)="closeNav()">Search</a>
+
+          @if (!isLoggedIn) {
+            <a routerLink="/auth" routerLinkActive="active" class="nav-link px-3" (click)="closeNav()">Login</a>
+          }
+
+          @if (isLoggedIn) {
+            <a routerLink="/create-itinerary" routerLinkActive="active" class="nav-link px-3" (click)="closeNav()">Post Trip</a>
+            <a routerLink="/my-trips" routerLinkActive="active" class="nav-link px-3" (click)="closeNav()">My Trips</a>
+            <a routerLink="/requests" routerLinkActive="active" class="nav-link px-3" (click)="closeNav()">Requests</a>
+            <a routerLink="/messages" class="nav-link px-3 position-relative" [class.active]="isSectionActive('/messages') || isSectionActive('/chat')" (click)="closeNav()">
+              Messages
+              @if (messageNotificationService.unreadCount > 0) {
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ messageNotificationService.unreadCount }}</span>
+              }
+            </a>
+            <a routerLink="/profile" routerLinkActive="active" class="nav-link px-3" (click)="closeNav()">Profile</a>
+            <button type="button" class="btn btn-sm btn-danger ms-lg-2" (click)="logout()">Logout</button>
+          }
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <router-outlet></router-outlet>
+  </main>
+</div>
