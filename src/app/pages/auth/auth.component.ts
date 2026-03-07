@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnDestroy } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -47,11 +48,16 @@ import { AuthService } from '../../services/auth.service';
             <div *ngIf="mode === 'login'" class="mt-3">
               <div class="text-muted small mb-2">Or continue with</div>
               <div class="d-flex gap-2 flex-wrap">
-                <button class="btn btn-outline-danger" type="button" [disabled]="loading" (click)="oauth('google')">
+                <button class="btn btn-light border d-inline-flex align-items-center gap-2 px-3 py-2 google-btn" type="button" [disabled]="loading" (click)="oauthGoogle()">
+                  <span aria-hidden="true" class="google-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.2-.9 2.2-1.9 2.9l3 2.3c1.8-1.6 2.8-4 2.8-6.9 0-.6-.1-1.2-.2-1.8H12z"/>
+                      <path fill="#34A853" d="M12 22c2.6 0 4.8-.9 6.4-2.5l-3-2.3c-.8.5-1.9.9-3.4.9-2.6 0-4.8-1.7-5.6-4.1l-3.1 2.4C4.9 19.7 8.2 22 12 22z"/>
+                      <path fill="#4A90E2" d="M6.4 14c-.2-.5-.3-1.2-.3-1.8s.1-1.2.3-1.8L3.3 8c-.7 1.3-1.1 2.7-1.1 4.2s.4 3 1.1 4.2L6.4 14z"/>
+                      <path fill="#FBBC05" d="M12 6.3c1.4 0 2.7.5 3.7 1.4l2.8-2.8C16.8 3.3 14.6 2.4 12 2.4 8.2 2.4 4.9 4.7 3.3 8l3.1 2.4c.8-2.4 3-4.1 5.6-4.1z"/>
+                    </svg>
+                  </span>
                   Continue with Google
-                </button>
-                <button class="btn btn-outline-dark" type="button" [disabled]="loading" (click)="oauth('github')">
-                  Continue with GitHub
                 </button>
               </div>
             </div>
@@ -59,13 +65,34 @@ import { AuthService } from '../../services/auth.service';
         </div>
       </div>
     </div>
-  `
+  `,
+  styles: [
+    `
+      .google-btn {
+        color: #1f2937;
+        font-weight: 500;
+      }
+
+      .google-btn:hover,
+      .google-btn:focus {
+        background-color: #f8f9fc;
+        border-color: #d0d7e2;
+      }
+
+      .google-icon {
+        line-height: 0;
+        display: inline-flex;
+      }
+    `
+  ]
 })
-export class AuthComponent {
+export class AuthComponent implements OnDestroy {
   mode: 'login' | 'signup' = 'login';
   errorMessage = '';
   infoMessage = '';
   loading = false;
+
+  private authSubscription: Subscription;
 
   form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -73,7 +100,23 @@ export class AuthComponent {
     displayName: ['']
   });
 
-  constructor(private fb: FormBuilder, private authService: AuthService, private router: Router) {}
+  constructor(private fb: FormBuilder, private authService: AuthService, private router: Router) {
+    this.authSubscription = this.authService.session$.subscribe((session) => {
+      if (session) {
+        this.errorMessage = '';
+        this.infoMessage = 'Login successful. Redirecting...';
+        void this.router.navigate(['/home']);
+      }
+    });
+
+    if (this.authService.currentSession) {
+      void this.router.navigate(['/home']);
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.authSubscription.unsubscribe();
+  }
 
   toggleMode() {
     this.mode = this.mode === 'login' ? 'signup' : 'login';
@@ -107,7 +150,7 @@ export class AuthComponent {
       }
 
       if (this.mode === 'login') {
-        this.infoMessage = 'Login successful.';
+        this.infoMessage = 'Login successful. Redirecting...';
         await this.router.navigate(['/home']);
         return;
       }
@@ -118,20 +161,20 @@ export class AuthComponent {
     }
   }
 
-  async oauth(provider: 'google' | 'github') {
+  async oauthGoogle() {
     if (this.loading) return;
     this.loading = true;
     this.errorMessage = '';
     this.infoMessage = '';
 
     try {
-      const error = await this.authService.loginWithOAuth(provider);
+      const error = await this.authService.loginWithOAuth('google');
       if (error) {
         this.errorMessage = error;
         return;
       }
 
-      this.infoMessage = 'Redirecting to provider login...';
+      this.infoMessage = 'Redirecting to Google login...';
     } finally {
       this.loading = false;
     }

@@ -62,9 +62,7 @@ export class AuthService {
         const session = data.session;
         this.setSession(session);
 
-        if (session?.user) {
-          await this.ensureProfileRecord(session.user);
-        } else {
+        if (!session?.user) {
           await this.handleSignedOutState();
         }
       } catch {
@@ -165,7 +163,7 @@ export class AuthService {
     }
   }
 
-  async loginWithOAuth(provider: 'google' | 'github'): Promise<string | null> {
+  async loginWithOAuth(provider: 'google'): Promise<string | null> {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,

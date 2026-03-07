@@ -42,6 +42,8 @@ export class AppComponent implements OnDestroy {
     window.addEventListener('focus', this.onWindowFocus);
     window.addEventListener('online', this.onWindowOnline);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
+
+    void this.recoverAppState(true);
   }
 
   get isLoggedIn(): boolean {
