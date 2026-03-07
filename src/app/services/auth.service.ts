@@ -14,6 +14,8 @@ export class AuthService implements OnDestroy {
   private lastSessionRefreshAt = 0;
   private readonly minSessionRefreshGapMs = 4000;
   private authStateSubscription: { unsubscribe: () => void } | null = null;
+  private explicitLogoutInProgress = false;
+  private restoreOnNullInFlight: Promise<boolean> | null = null;
 
   constructor(private router: Router) {
     void this.loadSession();
@@ -28,9 +30,19 @@ export class AuthService implements OnDestroy {
       this.setSession(session);
 
       if (!session?.user) {
+        if (!this.explicitLogoutInProgress) {
+          const restored = await this.restoreSessionAfterNullEvent();
+          if (restored) {
+            return;
+          }
+        }
+
         await this.handleSignedOutState();
+        this.explicitLogoutInProgress = false;
         return;
       }
+
+      this.explicitLogoutInProgress = false;
 
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         await this.ensureProfileRecord(session.user);
@@ -242,6 +254,7 @@ export class AuthService implements OnDestroy {
   }
 
   async logout(): Promise<void> {
+    this.explicitLogoutInProgress = true;
     try {
       await this.withTimeout(supabase.auth.signOut(), this.sessionTimeoutMs);
     } catch {
@@ -251,6 +264,32 @@ export class AuthService implements OnDestroy {
       this.sessionCheckInFlight = null;
       this.lastSessionRefreshAt = 0;
       await this.router.navigate(['/auth']);
+    }
+  }
+
+  private async restoreSessionAfterNullEvent(): Promise<boolean> {
+    if (this.restoreOnNullInFlight) {
+      return this.restoreOnNullInFlight;
+    }
+
+    this.restoreOnNullInFlight = (async () => {
+      try {
+        const { data, error } = await this.withTimeout(supabase.auth.getSession(), this.sessionTimeoutMs);
+        if (error || !data.session?.user) {
+          return false;
+        }
+
+        this.setSession(data.session);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+
+    try {
+      return await this.restoreOnNullInFlight;
+    } finally {
+      this.restoreOnNullInFlight = null;
     }
   }
 
@@ -292,7 +331,7 @@ export class AuthService implements OnDestroy {
 
   private async handleSignedOutState(): Promise<void> {
     const onProtectedRoute = this.isProtectedRoute(this.router.url);
-    if (onProtectedRoute) {
+    if (onProtectedRoute && !this.router.url.startsWith('/auth')) {
       await this.router.navigate(['/auth']);
     }
   }

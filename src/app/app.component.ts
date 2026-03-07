@@ -62,6 +62,11 @@ export class AppComponent implements OnDestroy {
     this.isNavOpen = false;
   }
 
+  async logout() {
+    this.closeNav();
+    await this.authService.logout();
+  }
+
   private onUnhandledRejection = (event: PromiseRejectionEvent) => {
     console.error('Unhandled promise rejection', event.reason);
   };
