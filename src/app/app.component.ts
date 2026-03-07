@@ -13,8 +13,9 @@ import { MessageNotificationService } from './services/message-notification.serv
 })
 export class AppComponent implements OnDestroy {
   isNavOpen = false;
-  private readonly subscription: Subscription;
+  private readonly subscriptions = new Subscription();
   currentUrl = '/';
+  authErrorMessage = '';
   private foregroundCheckInFlight = false;
   private hiddenAt = 0;
   private recoveryTimerId: number | null = null;
@@ -26,7 +27,7 @@ export class AppComponent implements OnDestroy {
   ) {
     this.currentUrl = this.router.url;
 
-    this.subscription = this.router.events.subscribe((event) => {
+    this.subscriptions.add(this.router.events.subscribe((event) => {
       if (event instanceof NavigationStart) {
         if (event.url.startsWith('/requests') || event.url.startsWith('/messages') || event.url.startsWith('/chat')) {
           this.messageNotificationService.clearUnread();
@@ -37,7 +38,11 @@ export class AppComponent implements OnDestroy {
         this.currentUrl = event.urlAfterRedirects;
         this.clearStaleOverlays();
       }
-    });
+    }));
+
+    this.subscriptions.add(this.authService.authError$.subscribe((message) => {
+      this.authErrorMessage = message;
+    }));
 
     window.addEventListener('unhandledrejection', this.onUnhandledRejection);
     window.addEventListener('focus', this.onWindowFocus);
@@ -140,7 +145,7 @@ export class AppComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.subscription.unsubscribe();
+    this.subscriptions.unsubscribe();
     window.removeEventListener('unhandledrejection', this.onUnhandledRejection);
     window.removeEventListener('focus', this.onWindowFocus);
     window.removeEventListener('online', this.onWindowOnline);

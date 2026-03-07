@@ -203,6 +203,8 @@ export class ItineraryService {
       .eq('owner_id', userId)
       .order('start_date', { ascending: false });
 
+    if (error) this.logQueryError('listMyTrips', error.message);
+
     return { data: (data as Itinerary[]) ?? [], error: error?.message ?? null };
   }
 
@@ -221,6 +223,8 @@ export class ItineraryService {
       .lte('start_date', params.searchEndDate)
       .gte('end_date', params.searchStartDate)
       .limit(300);
+
+    if (error) this.logQueryError('search', error.message);
 
     if (error) return { data: [], error: error.message };
 
@@ -249,6 +253,7 @@ export class ItineraryService {
 
   async findById(id: string): Promise<{ data: Itinerary | null; error: string | null }> {
     const header = await supabase.from('itineraries').select('*').eq('id', id).maybeSingle();
+    if (header.error) this.logQueryError('findById.header', header.error.message);
     if (header.error) return { data: null, error: header.error.message };
     if (!header.data) return { data: null, error: null };
 
@@ -257,6 +262,8 @@ export class ItineraryService {
       .select('*')
       .eq('itinerary_id', id)
       .order('leg_order', { ascending: true });
+
+    if (legs.error) this.logQueryError('findById.legs', legs.error.message);
 
     if (legs.error) return { data: null, error: legs.error.message };
 
@@ -283,6 +290,10 @@ export class ItineraryService {
 
   private normalizeAirportCode(input: string): string {
     return (input || '').replace(/\s+/g, '').toUpperCase();
+  }
+
+  private logQueryError(operation: string, message: string): void {
+    console.error('[itinerary]', `${operation} failed`, { message });
   }
 
 }
