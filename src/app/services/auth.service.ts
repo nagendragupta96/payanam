@@ -14,14 +14,12 @@ export class AuthService implements OnDestroy {
   private sessionCheckInFlight: Promise<void> | null = null;
   private readonly sessionTimeoutMs = 8000;
   private readonly foregroundValidationTimeoutMs = 2500;
-  private readonly refreshTimeoutMs = 5000;
   private initialized = false;
   private initPromise: Promise<void> | null = null;
   private lastForegroundValidationAt = 0;
   private readonly minForegroundValidationGapMs = 15000;
   private authStateSubscription: { unsubscribe: () => void } | null = null;
   private explicitLogoutInProgress = false;
-  private hadAuthenticatedSession = false;
   private restoreOnNullInFlight: Promise<boolean> | null = null;
   private foregroundValidationInFlight: Promise<void> | null = null;
 
@@ -35,6 +33,16 @@ export class AuthService implements OnDestroy {
     this.authStateSubscription = supabase.auth.onAuthStateChange(async (event, session) => {
       this.debug('onAuthStateChange', { event, hasSession: !!session?.user, explicitLogoutInProgress: this.explicitLogoutInProgress });
       if (!session?.user) {
+        const hadSession = !!this.currentSession?.user;
+
+        if (this.explicitLogoutInProgress) {
+          this.setSession(null);
+          this.clearAuthError();
+          await this.handleSignedOutState();
+          this.explicitLogoutInProgress = false;
+          return;
+        }
+
         if (!this.explicitLogoutInProgress) {
           const restored = await this.restoreSessionAfterNullEvent();
           if (restored) {
@@ -42,10 +50,11 @@ export class AuthService implements OnDestroy {
           }
         }
 
-        const hadSession = !!this.currentSession?.user || this.hadAuthenticatedSession;
         this.setSession(null);
-        if (hadSession && !this.explicitLogoutInProgress) {
+        if (hadSession) {
           this.setAuthError('Your session has expired. Please login again.');
+        } else {
+          this.clearAuthError();
         }
         await this.handleSignedOutState();
         this.explicitLogoutInProgress = false;
@@ -96,38 +105,7 @@ export class AuthService implements OnDestroy {
     this.foregroundValidationInFlight = (async () => {
       try {
         this.debug('Foreground validation start', { force });
-        const hasSession = !!this.currentSession?.user;
-        if (hasSession) {
-          const { data: refreshed, error: refreshError } = await this.withTimeout(supabase.auth.refreshSession(), this.refreshTimeoutMs);
-          if (refreshError) {
-            this.debug('Foreground token refresh failed', { message: refreshError.message });
-            if (this.isInvalidSessionError(refreshError.message)) {
-              this.setSession(null);
-              this.setAuthError('Your session is no longer valid. Please login again.');
-              await this.handleSignedOutState();
-              return;
-            }
-
-            const { data: fallbackData, error: fallbackError } = await this.withTimeout(supabase.auth.getSession(), this.foregroundValidationTimeoutMs);
-            if (fallbackError) {
-              this.debug('Foreground fallback getSession failed', { message: fallbackError.message });
-              return;
-            }
-
-            if (fallbackData.session?.user) {
-              this.setSession(fallbackData.session);
-              this.clearAuthError();
-              this.debug('Foreground fallback getSession recovered active session');
-            }
-            return;
-          }
-
-          this.setSession(refreshed.session ?? this.currentSession);
-          this.clearAuthError();
-          this.debug('Foreground token refresh success', { hasSession: !!refreshed.session?.user });
-          return;
-        }
-
+        const hadSession = !!this.currentSession?.user;
         const { data, error } = await this.withTimeout(supabase.auth.getSession(), this.foregroundValidationTimeoutMs);
         if (error) {
           this.debug('Foreground validation ended with Supabase error', { message: error.message });
@@ -136,7 +114,7 @@ export class AuthService implements OnDestroy {
 
         const session = data.session;
         this.debug('Foreground validation result', { hasSession: !!session?.user });
-        if (!session?.user && this.currentSession?.user && !this.explicitLogoutInProgress) {
+        if (!session?.user && hadSession && !this.explicitLogoutInProgress) {
           const restored = await this.restoreSessionAfterNullEvent();
           if (restored) {
             this.debug('Foreground validation recovered session after transient null');
@@ -145,9 +123,11 @@ export class AuthService implements OnDestroy {
         }
 
         this.setSession(session);
-        this.clearAuthError();
+        if (session?.user) {
+          this.clearAuthError();
+        }
         if (!session?.user) {
-          if (this.hadAuthenticatedSession) {
+          if (hadSession) {
             this.setAuthError('Your session has expired. Please login again.');
           }
           await this.handleSignedOutState();
@@ -179,13 +159,11 @@ export class AuthService implements OnDestroy {
         const { data, error } = await this.withTimeout(supabase.auth.getSession(), this.sessionTimeoutMs);
         if (error) {
           this.debug('loadSession supabase error', { message: error.message });
-          if (this.hadAuthenticatedSession) {
-            this.setAuthError('Unable to validate your session. Please retry.');
-          }
           return;
         }
 
         const session = data.session;
+        const hadSession = !!this.currentSession?.user;
         if (!session?.user && this.currentSession?.user && !this.explicitLogoutInProgress) {
           const restored = await this.restoreSessionAfterNullEvent();
           if (restored) {
@@ -194,11 +172,13 @@ export class AuthService implements OnDestroy {
         }
 
         this.setSession(session);
-        this.clearAuthError();
+        if (session?.user) {
+          this.clearAuthError();
+        }
         this.debug('loadSession result', { hasSession: !!session?.user });
 
         if (!session?.user) {
-          if (this.hadAuthenticatedSession) {
+          if (hadSession) {
             this.setAuthError('Your session has expired. Please login again.');
           }
           await this.handleSignedOutState();
@@ -354,7 +334,6 @@ export class AuthService implements OnDestroy {
       this.clearAuthError();
       this.sessionCheckInFlight = null;
       this.lastForegroundValidationAt = 0;
-      this.explicitLogoutInProgress = false;
       await this.router.navigate(['/auth']);
       this.debug('logout complete');
     }
@@ -461,11 +440,6 @@ export class AuthService implements OnDestroy {
     return text.includes('unsupported provider') || text.includes('provider is not enabled');
   }
 
-  private isInvalidSessionError(message: string): boolean {
-    const text = message.toLowerCase();
-    return text.includes('refresh token') || text.includes('jwt') || text.includes('invalid token') || text.includes('session') || text.includes('token is expired');
-  }
-
   private async ensureProfileRecord(user: User): Promise<string | null> {
     const sessionUserId = this.currentSession?.user.id ?? user.id;
     if (!sessionUserId || sessionUserId !== user.id) {
@@ -499,9 +473,6 @@ export class AuthService implements OnDestroy {
     }
 
     this.sessionSubject.next(session);
-    if (session?.user) {
-      this.hadAuthenticatedSession = true;
-    }
     this.debug('session updated', { hasSession: !!session?.user });
   }
 
