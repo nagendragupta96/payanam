@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { supabase } from './supabase-client';
 import { FlightLeg, Itinerary } from '../models/itinerary.model';
+import { AuthService } from './auth.service';
 
 interface SearchParams {
   originAirportCode: string;
@@ -19,6 +20,8 @@ interface RankedItinerary {
 @Injectable({ providedIn: 'root' })
 export class ItineraryService {
   private readonly queryTimeoutMs = 12000;
+
+  constructor(private authService: AuthService) {}
 
   async createItinerary(itinerary: Itinerary, userId: string): Promise<{ error: string | null; warning: string | null }> {
     try {
@@ -294,6 +297,7 @@ export class ItineraryService {
 
   private logQueryError(operation: string, message: string): void {
     console.error('[itinerary]', `${operation} failed`, { message });
+    this.authService.reportAuthFailure(`itinerary.${operation}`, message);
   }
 
 }

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from './supabase-client';
+import { AuthService } from './auth.service';
 
 export type RequestType = 'COMPANION' | 'ASSISTANCE' | 'CONTACT_DETAILS';
 
@@ -19,6 +20,8 @@ export interface RequestRecord {
 
 @Injectable({ providedIn: 'root' })
 export class RequestService {
+  constructor(private authService: AuthService) {}
+
   async createOrGetRequest(
     itineraryId: string,
     requesterId: string,
@@ -31,7 +34,10 @@ export class RequestService {
       .eq('id', itineraryId)
       .single();
 
-    if (itinerary.error) return { data: null, existing: false, error: itinerary.error.message };
+    if (itinerary.error) {
+      this.handleAuthFailure('createOrGetRequest.itinerary', itinerary.error.message);
+      return { data: null, existing: false, error: itinerary.error.message };
+    }
 
     const ownerId = itinerary.data.owner_id as string;
 
@@ -84,6 +90,7 @@ export class RequestService {
       .limit(1)
       .maybeSingle();
 
+    this.handleAuthFailure('findLatestRequestByType', error?.message ?? '');
     return { data: (data as RequestRecord) ?? null, error: error?.message ?? null };
   }
 
@@ -100,6 +107,7 @@ export class RequestService {
       .limit(1)
       .maybeSingle();
 
+    this.handleAuthFailure('findActiveRequest', error?.message ?? '');
     return { data: (data as RequestRecord) ?? null, error: error?.message ?? null };
   }
 
@@ -111,6 +119,7 @@ export class RequestService {
       .or(`requester_id.eq.${userId},owner_id.eq.${userId}`)
       .maybeSingle();
 
+    this.handleAuthFailure('getRequestByIdForUser', error?.message ?? '');
     return { data: (data as RequestRecord) ?? null, error: error?.message ?? null };
   }
 
@@ -121,6 +130,7 @@ export class RequestService {
       .eq('id', requestId)
       .eq('requester_id', requesterId);
 
+    this.handleAuthFailure('updateRequestMessage', error?.message ?? '');
     return error?.message ?? null;
   }
 
@@ -132,6 +142,7 @@ export class RequestService {
       .eq('requester_id', requesterId)
       .eq('status', 'PENDING');
 
+    this.handleAuthFailure('cancelRequest', error?.message ?? '');
     return error?.message ?? null;
   }
 
@@ -158,6 +169,7 @@ export class RequestService {
   async acceptRequest(requestId: string): Promise<{ threadId: string | null; error: string | null }> {
     const request = await supabase.from('requests').select('id, request_type').eq('id', requestId).maybeSingle();
     if (request.error || !request.data) {
+      this.handleAuthFailure('acceptRequest.load', request.error?.message ?? '');
       return { threadId: null, error: request.error?.message ?? 'Request not found.' };
     }
 
@@ -167,10 +179,12 @@ export class RequestService {
         .update({ status: 'ACCEPTED', updated_at: new Date().toISOString() })
         .eq('id', requestId)
         .eq('status', 'PENDING');
+      this.handleAuthFailure('acceptRequest.contact', error?.message ?? '');
       return { threadId: null, error: error?.message ?? null };
     }
 
     const { data, error } = await supabase.rpc('accept_request_and_create_thread', { p_request_id: requestId });
+    this.handleAuthFailure('acceptRequest.rpc', error?.message ?? '');
     return { threadId: (data as string) ?? null, error: error?.message ?? null };
   }
 
@@ -183,6 +197,7 @@ export class RequestService {
       .order('created_at', { ascending: false })
       .maybeSingle();
 
+    this.handleAuthFailure('getUserRequestForItinerary', error?.message ?? '');
     return { data, error: error?.message ?? null };
   }
 
@@ -194,6 +209,7 @@ export class RequestService {
       .eq('owner_id', ownerId)
       .eq('status', 'PENDING');
 
+    this.handleAuthFailure('updateRequestStatus', error?.message ?? '');
     return error?.message ?? null;
   }
 
@@ -208,6 +224,7 @@ export class RequestService {
       .limit(1)
       .maybeSingle();
 
+    this.handleAuthFailure('getUserLatestRequestForItineraryByType', error?.message ?? '');
     return { data: (data as RequestRecord | null) ?? null, error: error?.message ?? null };
   }
 
@@ -218,5 +235,10 @@ export class RequestService {
   private isUniquePairError(error: PostgrestError | null): boolean {
     if (!error) return false;
     return error.message.includes('requests_unique_pair') || error.message.includes('requests_active_unique_idx') || error.code === '23505';
+  }
+
+  private handleAuthFailure(operation: string, message: string): void {
+    if (!message) return;
+    this.authService.reportAuthFailure(`request.${operation}`, message);
   }
 }

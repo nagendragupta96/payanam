@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { supabase } from './supabase-client';
+import { AuthService } from './auth.service';
 
 export interface ChatMessage {
   id: string;
@@ -20,6 +21,8 @@ export interface ChatThread {
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {
+  constructor(private authService: AuthService) {}
+
   isSafeMessage(message: string): { safe: boolean; reason?: string } {
     const emailPattern = /[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}/i;
     const phonePattern = /(?:\+?\d[\d\s().-]{7,}\d)/;
@@ -49,6 +52,7 @@ export class ChatService {
       request_type: row.requests?.request_type
     })) as ChatThread[];
 
+    this.handleAuthFailure('listThreadsForUser', error?.message ?? '');
     return { data: mapped, error: error?.message ?? null };
   }
 
@@ -70,6 +74,7 @@ export class ChatService {
         } as ChatThread)
       : null;
 
+    this.handleAuthFailure('getThreadByRequest', error?.message ?? '');
     return { data: mapped, error: error?.message ?? null };
   }
 
@@ -80,6 +85,7 @@ export class ChatService {
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true });
 
+    this.handleAuthFailure('listMessages', error?.message ?? '');
     return { data: (data as ChatMessage[]) ?? [], error: error?.message ?? null };
   }
 
@@ -92,7 +98,10 @@ export class ChatService {
       .in('thread_id', threadIds)
       .order('created_at', { ascending: false });
 
-    if (error) return { data: {}, error: error.message };
+    if (error) {
+      this.handleAuthFailure('listLastMessagesByThread', error.message);
+      return { data: {}, error: error.message };
+    }
 
     const map: Record<string, ChatMessage> = {};
     for (const msg of (data as ChatMessage[]) ?? []) {
@@ -113,6 +122,7 @@ export class ChatService {
       .select('id, thread_id, body, sender_id, created_at')
       .single();
 
+    this.handleAuthFailure('sendMessage', error?.message ?? '');
     return { data: (data as ChatMessage) ?? null, error: error?.message ?? null };
   }
 
@@ -139,5 +149,10 @@ export class ChatService {
       .channel(`thread:${threadId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` }, callback)
       .subscribe();
+  }
+
+  private handleAuthFailure(operation: string, message: string): void {
+    if (!message) return;
+    this.authService.reportAuthFailure(`chat.${operation}`, message);
   }
 }

@@ -22,6 +22,7 @@ export class AuthService implements OnDestroy {
   private explicitLogoutInProgress = false;
   private restoreOnNullInFlight: Promise<boolean> | null = null;
   private foregroundValidationInFlight: Promise<void> | null = null;
+  private forceResetInProgress = false;
 
   constructor(private router: Router) {
     this.debug('AuthService initialized');
@@ -114,6 +115,11 @@ export class AuthService implements OnDestroy {
 
         const session = data.session;
         this.debug('Foreground validation result', { hasSession: !!session?.user });
+        if (!session?.user && hadSession) {
+          await this.forceResetSession('foreground session missing after resume');
+          return;
+        }
+
         if (!session?.user && hadSession && !this.explicitLogoutInProgress) {
           const restored = await this.restoreSessionAfterNullEvent();
           if (restored) {
@@ -164,6 +170,11 @@ export class AuthService implements OnDestroy {
 
         const session = data.session;
         const hadSession = !!this.currentSession?.user;
+        if (!session?.user && hadSession) {
+          await this.forceResetSession('startup/session check returned null while app had session');
+          return;
+        }
+
         if (!session?.user && this.currentSession?.user && !this.explicitLogoutInProgress) {
           const restored = await this.restoreSessionAfterNullEvent();
           if (restored) {
@@ -339,6 +350,55 @@ export class AuthService implements OnDestroy {
     }
   }
 
+  /**
+   * Temporary fail-safe: hard reset all local auth/session state if app detects half-authenticated lockups.
+   * Keep until root cause of stale session behavior is fully resolved.
+   */
+  async forceResetSession(reason = 'unknown'): Promise<void> {
+    if (this.forceResetInProgress) {
+      this.debug('forceResetSession skipped (already in progress)', { reason });
+      return;
+    }
+
+    this.forceResetInProgress = true;
+    this.debug('forceResetSession invoked', { reason });
+
+    try {
+      try {
+        await this.withTimeout(supabase.auth.signOut(), this.sessionTimeoutMs);
+      } catch {
+        this.debug('forceResetSession signOut failed; continuing with local cleanup');
+      }
+
+      try {
+        supabase.removeAllChannels();
+      } catch {
+        this.debug('forceResetSession removeAllChannels failed');
+      }
+
+      this.clearStoredAuthArtifacts();
+      this.explicitLogoutInProgress = false;
+      this.sessionCheckInFlight = null;
+      this.foregroundValidationInFlight = null;
+      this.restoreOnNullInFlight = null;
+      this.lastForegroundValidationAt = 0;
+      this.setSession(null);
+      this.setAuthError('Your session ended. Please log in again.');
+
+      if (!this.router.url.startsWith('/auth')) {
+        await this.router.navigate(['/auth']);
+      }
+    } finally {
+      this.forceResetInProgress = false;
+    }
+  }
+
+  reportAuthFailure(operation: string, message: string): void {
+    this.debug('reportAuthFailure', { operation, message });
+    if (!this.isAuthFailureMessage(message)) return;
+    void this.forceResetSession(`${operation}: ${message}`);
+  }
+
   private async restoreSessionAfterNullEvent(): Promise<boolean> {
     if (this.restoreOnNullInFlight) {
       return this.restoreOnNullInFlight;
@@ -435,6 +495,20 @@ export class AuthService implements OnDestroy {
     return text.includes('failed to fetch') || text.includes('network request failed') || text.includes('fetch failed');
   }
 
+  private isAuthFailureMessage(message: string): boolean {
+    const text = (message || '').toLowerCase();
+    return (
+      text.includes('jwt') ||
+      text.includes('not authenticated') ||
+      text.includes('invalid token') ||
+      text.includes('token') ||
+      text.includes('unauthorized') ||
+      text.includes('permission denied') ||
+      text.includes('row-level security') ||
+      text.includes('session')
+    );
+  }
+
   private isUnsupportedProviderError(message: string): boolean {
     const text = message.toLowerCase();
     return text.includes('unsupported provider') || text.includes('provider is not enabled');
@@ -486,6 +560,25 @@ export class AuthService implements OnDestroy {
     if (!this.authErrorSubject.value) return;
     this.authErrorSubject.next('');
     this.debug('auth error cleared');
+  }
+
+  private clearStoredAuthArtifacts(): void {
+    if (typeof window === 'undefined') return;
+
+    const clearMatching = (storage: Storage) => {
+      const keys: string[] = [];
+      for (let index = 0; index < storage.length; index++) {
+        const key = storage.key(index);
+        if (!key) continue;
+        if (key.startsWith('sb-') && key.includes('-auth-token')) {
+          keys.push(key);
+        }
+      }
+      keys.forEach((key) => storage.removeItem(key));
+    };
+
+    clearMatching(window.localStorage);
+    clearMatching(window.sessionStorage);
   }
 
   private debug(message: string, meta?: unknown): void {
