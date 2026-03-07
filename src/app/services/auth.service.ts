@@ -23,6 +23,7 @@ export class AuthService implements OnDestroy {
   private restoreOnNullInFlight: Promise<boolean> | null = null;
   private foregroundValidationInFlight: Promise<void> | null = null;
   private forceResetInProgress = false;
+  private authRecoveryInFlight: Promise<void> | null = null;
 
   constructor(private router: Router) {
     this.debug('AuthService initialized');
@@ -45,10 +46,16 @@ export class AuthService implements OnDestroy {
         }
 
         if (!this.explicitLogoutInProgress) {
-          const restored = await this.restoreSessionAfterNullEvent();
+          const restored = await this.tryRecoverSession(`auth-state:${event}`);
           if (restored) {
             return;
           }
+        }
+
+        if (hadSession && event !== 'SIGNED_OUT') {
+          // Guard against transient null-session events during tab/window focus changes.
+          this.setAuthError('Connection interrupted. Reconnecting your session...');
+          return;
         }
 
         this.setSession(null);
@@ -116,12 +123,7 @@ export class AuthService implements OnDestroy {
         const session = data.session;
         this.debug('Foreground validation result', { hasSession: !!session?.user });
         if (!session?.user && hadSession) {
-          await this.forceResetSession('foreground session missing after resume');
-          return;
-        }
-
-        if (!session?.user && hadSession && !this.explicitLogoutInProgress) {
-          const restored = await this.restoreSessionAfterNullEvent();
+          const restored = await this.tryRecoverSession('foreground');
           if (restored) {
             this.debug('Foreground validation recovered session after transient null');
             return;
@@ -171,12 +173,7 @@ export class AuthService implements OnDestroy {
         const session = data.session;
         const hadSession = !!this.currentSession?.user;
         if (!session?.user && hadSession) {
-          await this.forceResetSession('startup/session check returned null while app had session');
-          return;
-        }
-
-        if (!session?.user && this.currentSession?.user && !this.explicitLogoutInProgress) {
-          const restored = await this.restoreSessionAfterNullEvent();
+          const restored = await this.tryRecoverSession('loadSession');
           if (restored) {
             return;
           }
@@ -396,7 +393,53 @@ export class AuthService implements OnDestroy {
   reportAuthFailure(operation: string, message: string): void {
     this.debug('reportAuthFailure', { operation, message });
     if (!this.isAuthFailureMessage(message)) return;
-    void this.forceResetSession(`${operation}: ${message}`);
+
+    if (this.authRecoveryInFlight) {
+      this.debug('reportAuthFailure skipped (recovery already in flight)', { operation });
+      return;
+    }
+
+    this.authRecoveryInFlight = (async () => {
+      const restored = await this.tryRecoverSession(`query:${operation}`);
+      if (restored) {
+        this.clearAuthError();
+        return;
+      }
+
+      // Final fallback for persistent auth failures.
+      await this.forceResetSession(`${operation}: ${message}`);
+    })().finally(() => {
+      this.authRecoveryInFlight = null;
+    });
+  }
+
+  private async tryRecoverSession(source: string): Promise<boolean> {
+    this.debug('tryRecoverSession start', { source });
+
+    const recoveredFromNullEvent = await this.restoreSessionAfterNullEvent();
+    if (recoveredFromNullEvent) {
+      this.debug('tryRecoverSession recovered via null-event restore', { source });
+      this.clearAuthError();
+      return true;
+    }
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      await this.wait(300 * attempt);
+      try {
+        const { data, error } = await this.withTimeout(supabase.auth.getSession(), this.sessionTimeoutMs);
+        if (!error && data.session?.user) {
+          this.setSession(data.session);
+          this.clearAuthError();
+          this.debug('tryRecoverSession recovered via delayed getSession', { source, attempt });
+          return true;
+        }
+      } catch {
+        this.debug('tryRecoverSession delayed getSession timed out', { source, attempt });
+      }
+    }
+
+    this.debug('tryRecoverSession failed', { source });
+    return false;
   }
 
   private async restoreSessionAfterNullEvent(): Promise<boolean> {
