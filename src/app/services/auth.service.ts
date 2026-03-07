@@ -11,22 +11,25 @@ export class AuthService implements OnDestroy {
   readonly session$ = this.sessionSubject.asObservable();
   private sessionCheckInFlight: Promise<void> | null = null;
   private readonly sessionTimeoutMs = 8000;
-  private lastSessionRefreshAt = 0;
-  private readonly minSessionRefreshGapMs = 4000;
+  private readonly foregroundValidationTimeoutMs = 2500;
+  private initialized = false;
+  private initPromise: Promise<void> | null = null;
+  private lastForegroundValidationAt = 0;
+  private readonly minForegroundValidationGapMs = 15000;
   private authStateSubscription: { unsubscribe: () => void } | null = null;
   private explicitLogoutInProgress = false;
   private restoreOnNullInFlight: Promise<boolean> | null = null;
+  private foregroundValidationInFlight: Promise<void> | null = null;
 
   constructor(private router: Router) {
-    void this.loadSession();
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', this.onWindowFocus);
-      window.addEventListener('online', this.onWindowOnline);
-      document.addEventListener('visibilitychange', this.onVisibilityChange);
-    }
+    this.debug('AuthService initialized');
+    this.initPromise = this.loadSession().finally(() => {
+      this.initialized = true;
+      this.debug('Initial session bootstrap complete', { hasSession: !!this.currentSession?.user });
+    });
 
     this.authStateSubscription = supabase.auth.onAuthStateChange(async (event, session) => {
+      this.debug('onAuthStateChange', { event, hasSession: !!session?.user, explicitLogoutInProgress: this.explicitLogoutInProgress });
       if (!session?.user) {
         if (!this.explicitLogoutInProgress) {
           const restored = await this.restoreSessionAfterNullEvent();
@@ -52,45 +55,63 @@ export class AuthService implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('focus', this.onWindowFocus);
-      window.removeEventListener('online', this.onWindowOnline);
-      document.removeEventListener('visibilitychange', this.onVisibilityChange);
-    }
     this.authStateSubscription?.unsubscribe();
   }
-
-
-  private onWindowFocus = () => {
-    void this.refreshSessionIfNeeded();
-  };
-
-  private onWindowOnline = () => {
-    void this.refreshSessionIfNeeded(true);
-  };
-
-  private onVisibilityChange = () => {
-    if (!document.hidden) {
-      void this.refreshSessionIfNeeded();
-    }
-  };
 
   get currentSession(): Session | null {
     return this.sessionSubject.value;
   }
 
-  async refreshSessionIfNeeded(force = false): Promise<void> {
+  async ensureInitialized(): Promise<void> {
+    if (this.initialized) return;
+    await (this.initPromise ?? this.loadSession());
+  }
+
+  async onAppForeground(force = false): Promise<void> {
     const now = Date.now();
-    if (!force && now - this.lastSessionRefreshAt < this.minSessionRefreshGapMs) {
+    if (!force && now - this.lastForegroundValidationAt < this.minForegroundValidationGapMs) {
+      this.debug('Foreground validation skipped (throttled)');
       return;
     }
 
-    this.lastSessionRefreshAt = now;
+    if (this.foregroundValidationInFlight) {
+      this.debug('Foreground validation skipped (already in flight)');
+      return;
+    }
+
+    this.lastForegroundValidationAt = now;
+    this.foregroundValidationInFlight = (async () => {
+      try {
+        this.debug('Foreground validation start', { force });
+        const { data, error } = await this.withTimeout(supabase.auth.getSession(), this.foregroundValidationTimeoutMs);
+        if (error) {
+          this.debug('Foreground validation ended with Supabase error', { message: error.message });
+          return;
+        }
+
+        const session = data.session;
+        this.debug('Foreground validation result', { hasSession: !!session?.user });
+        if (!session?.user && this.currentSession?.user && !this.explicitLogoutInProgress) {
+          const restored = await this.restoreSessionAfterNullEvent();
+          if (restored) {
+            this.debug('Foreground validation recovered session after transient null');
+            return;
+          }
+        }
+
+        this.setSession(session);
+        if (!session?.user) {
+          await this.handleSignedOutState();
+        }
+      } catch {
+        this.debug('Foreground validation failed due to timeout/network; leaving current state untouched');
+      }
+    })();
+
     try {
-      await this.loadSession();
-    } catch {
-      // Allow near-immediate retry after transient failures on tab/app resume.
-      this.lastSessionRefreshAt = 0;
+      await this.foregroundValidationInFlight;
+    } finally {
+      this.foregroundValidationInFlight = null;
     }
   }
 
@@ -105,8 +126,10 @@ export class AuthService implements OnDestroy {
 
     this.sessionCheckInFlight = (async () => {
       try {
+        this.debug('loadSession start');
         const { data, error } = await this.withTimeout(supabase.auth.getSession(), this.sessionTimeoutMs);
         if (error) {
+          this.debug('loadSession supabase error', { message: error.message });
           return;
         }
 
@@ -119,12 +142,14 @@ export class AuthService implements OnDestroy {
         }
 
         this.setSession(session);
+        this.debug('loadSession result', { hasSession: !!session?.user });
 
         if (!session?.user) {
           await this.handleSignedOutState();
         }
       } catch {
         // Do not force-logout users on transient network errors.
+        this.debug('loadSession timeout/network error');
         return;
       }
     })();
@@ -262,15 +287,18 @@ export class AuthService implements OnDestroy {
 
   async logout(): Promise<void> {
     this.explicitLogoutInProgress = true;
+    this.debug('logout start');
     try {
       await this.withTimeout(supabase.auth.signOut(), this.sessionTimeoutMs);
     } catch {
       // Even if signOut request fails, clear local app auth state to avoid a stuck UI.
+      this.debug('logout signOut timeout/network; proceeding with local cleanup');
     } finally {
       this.setSession(null);
       this.sessionCheckInFlight = null;
-      this.lastSessionRefreshAt = 0;
+      this.lastForegroundValidationAt = 0;
       await this.router.navigate(['/auth']);
+      this.debug('logout complete');
     }
   }
 
@@ -408,5 +436,14 @@ export class AuthService implements OnDestroy {
     }
 
     this.sessionSubject.next(session);
+    this.debug('session updated', { hasSession: !!session?.user });
+  }
+
+  private debug(message: string, meta?: unknown): void {
+    if (meta !== undefined) {
+      console.debug('[auth]', message, meta);
+      return;
+    }
+    console.debug('[auth]', message);
   }
 }

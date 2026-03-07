@@ -36,6 +36,7 @@ export class MessageNotificationService {
 
     this.resetInFlight = (async () => {
       const userId = this.authService.currentSession?.user.id ?? null;
+      this.log('resetForSession start', { userId });
       if (!userId) {
         this.currentUserId = null;
         this.clearUnread();
@@ -50,6 +51,7 @@ export class MessageNotificationService {
       this.currentUserId = userId;
       this.clearUnread();
       await this.subscribeForUser(userId);
+      this.log('resetForSession complete', { userId });
     })();
 
     try {
@@ -61,6 +63,7 @@ export class MessageNotificationService {
 
   private async subscribeForUser(userId: string) {
     this.unsubscribe();
+    this.log('subscribeForUser', { userId });
 
     await this.subscribeToMessages(userId);
 
@@ -69,6 +72,7 @@ export class MessageNotificationService {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_threads' }, async (payload: any) => {
         if (!payload?.new) return;
         if (payload.new.owner_id !== userId && payload.new.requester_id !== userId) return;
+        this.log('thread subscription triggered; refreshing message subscription', { userId });
         await this.subscribeToMessages(userId);
       })
       .subscribe();
@@ -100,12 +104,26 @@ export class MessageNotificationService {
         this.unreadCountSubject.next(this.unreadCountSubject.value + 1);
       })
       .subscribe();
+
+    this.log('message subscription created', { userId, threadCount: threadIds.length });
   }
 
   private unsubscribe() {
+    this.log('unsubscribe channels', {
+      hadMessageChannel: !!this.messageChannel,
+      hadThreadChannel: !!this.threadChannel
+    });
     this.messageChannel?.unsubscribe();
     this.threadChannel?.unsubscribe();
     this.messageChannel = null;
     this.threadChannel = null;
+  }
+
+  private log(message: string, meta?: unknown): void {
+    if (meta !== undefined) {
+      console.debug('[notify]', message, meta);
+      return;
+    }
+    console.debug('[notify]', message);
   }
 }

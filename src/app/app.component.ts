@@ -15,9 +15,7 @@ export class AppComponent implements OnDestroy {
   isNavOpen = false;
   private readonly subscription: Subscription;
   currentUrl = '/';
-  private recoveringState = false;
-  private pendingRecovery = false;
-  private pendingForceRecovery = false;
+  private foregroundCheckInFlight = false;
   private hiddenAt = 0;
   private recoveryTimerId: number | null = null;
 
@@ -47,7 +45,7 @@ export class AppComponent implements OnDestroy {
     window.addEventListener('pageshow', this.onPageShow);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
 
-    void this.recoverAppState(true);
+    void this.authService.ensureInitialized();
   }
 
   get isLoggedIn(): boolean {
@@ -72,16 +70,19 @@ export class AppComponent implements OnDestroy {
   };
 
   private onWindowFocus = () => {
-    void this.recoverAppState();
+    this.log('window focus -> lightweight foreground validation');
+    void this.runForegroundValidation();
   };
 
   private onWindowOnline = () => {
-    void this.recoverAppState(true);
+    this.log('window online -> forced foreground validation');
+    void this.runForegroundValidation(true);
   };
 
   private onPageShow = (event: PageTransitionEvent) => {
     if (event.persisted) {
-      void this.recoverAppState(true);
+      this.log('pageshow persisted -> forced foreground validation');
+      void this.runForegroundValidation(true);
     }
   };
 
@@ -92,45 +93,40 @@ export class AppComponent implements OnDestroy {
     }
 
     const hiddenMs = this.hiddenAt ? Date.now() - this.hiddenAt : 0;
-    void this.recoverAppState(hiddenMs > 10_000);
+    this.log('visibilitychange -> visible', { hiddenMs });
+    void this.runForegroundValidation(hiddenMs > 10_000);
   };
 
-  private async recoverAppState(forceRefresh = false) {
-    if (this.recoveringState) {
-      this.pendingRecovery = true;
-      this.pendingForceRecovery = this.pendingForceRecovery || forceRefresh;
+  private async runForegroundValidation(force = false) {
+    if (this.foregroundCheckInFlight) {
+      this.log('foreground validation skipped (already in flight)');
       this.clearStaleOverlays();
       return;
     }
 
-    this.recoveringState = true;
-    const startedAt = Date.now();
+    this.foregroundCheckInFlight = true;
     this.recoveryTimerId = window.setTimeout(() => {
-      this.recoveringState = false;
-    }, 12_000);
+      this.foregroundCheckInFlight = false;
+    }, 10_000);
 
     try {
-      let shouldForce = forceRefresh;
-      do {
-        this.pendingRecovery = false;
-        this.pendingForceRecovery = false;
-        await this.authService.refreshSessionIfNeeded(shouldForce);
-        shouldForce = this.pendingForceRecovery;
-      } while (this.pendingRecovery);
+      await this.authService.onAppForeground(force);
     } finally {
       if (this.recoveryTimerId) {
         window.clearTimeout(this.recoveryTimerId);
         this.recoveryTimerId = null;
       }
+      this.foregroundCheckInFlight = false;
       this.clearStaleOverlays();
-      const elapsed = Date.now() - startedAt;
-      if (elapsed > 3000) {
-        console.warn(`App state recovery took ${elapsed}ms`);
-      }
-      this.recoveringState = false;
-      this.pendingRecovery = false;
-      this.pendingForceRecovery = false;
     }
+  }
+
+  private log(message: string, meta?: unknown) {
+    if (meta !== undefined) {
+      console.debug('[app]', message, meta);
+      return;
+    }
+    console.debug('[app]', message);
   }
 
   private clearStaleOverlays() {

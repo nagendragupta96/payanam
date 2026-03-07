@@ -6,7 +6,7 @@ export const authGuard: CanActivateFn = async () => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
-  await authService.refreshSessionIfNeeded(true);
+  await authService.ensureInitialized();
 
   if (authService.currentSession) {
     return true;
