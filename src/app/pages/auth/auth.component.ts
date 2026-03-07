@@ -31,10 +31,27 @@ import { AuthService } from '../../services/auth.service';
             <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
             <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
 
-            <form [formGroup]="form" (ngSubmit)="submit()">
-              <input class="form-control mb-2" placeholder="Email" formControlName="email" />
-              <input class="form-control mb-2" placeholder="Password" type="password" formControlName="password" />
-              <input *ngIf="mode === 'signup'" class="form-control mb-3" placeholder="Display Name" formControlName="displayName" />
+            <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+              <div class="mb-2">
+                <label class="form-label" for="authEmail">Email Address <span class="text-danger">*</span>
+                  <span class="info-icon" tabindex="0" title="Use the email address for your Payanam account." aria-label="Email help">ⓘ</span>
+                </label>
+                <input id="authEmail" class="form-control" formControlName="email" />
+              </div>
+
+              <div class="mb-2">
+                <label class="form-label" for="authPassword">Password <span class="text-danger">*</span>
+                  <span class="info-icon" tabindex="0" title="Password must be at least 6 characters." aria-label="Password help">ⓘ</span>
+                </label>
+                <input id="authPassword" class="form-control" type="password" formControlName="password" />
+              </div>
+
+              <div class="mb-3" *ngIf="mode === 'signup'">
+                <label class="form-label" for="displayName">Display Name <span class="text-danger">*</span>
+                  <span class="info-icon" tabindex="0" title="This name is shown to other users in requests and chat." aria-label="Display name help">ⓘ</span>
+                </label>
+                <input id="displayName" class="form-control" formControlName="displayName" />
+              </div>
 
               <button class="btn btn-primary" [disabled]="loading" type="submit">
                 <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
@@ -82,6 +99,14 @@ import { AuthService } from '../../services/auth.service';
       .google-icon {
         line-height: 0;
         display: inline-flex;
+      }
+
+      .info-icon {
+        display: inline-block;
+        margin-left: 0.35rem;
+        font-size: 0.85rem;
+        color: #0d6efd;
+        cursor: help;
       }
     `
   ]

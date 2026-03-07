@@ -12,6 +12,7 @@ export class MessageNotificationService {
   private messageChannel: RealtimeChannel | null = null;
   private threadChannel: RealtimeChannel | null = null;
   private currentUserId: string | null = null;
+  private resetInFlight: Promise<void> | null = null;
 
   constructor(private authService: AuthService) {
     this.authService.session$.subscribe(() => {
@@ -28,21 +29,34 @@ export class MessageNotificationService {
   }
 
   private async resetForSession() {
-    const userId = this.authService.currentSession?.user.id ?? null;
-    if (!userId) {
-      this.currentUserId = null;
+    if (this.resetInFlight) {
+      await this.resetInFlight;
+      return;
+    }
+
+    this.resetInFlight = (async () => {
+      const userId = this.authService.currentSession?.user.id ?? null;
+      if (!userId) {
+        this.currentUserId = null;
+        this.clearUnread();
+        this.unsubscribe();
+        return;
+      }
+
+      if (this.currentUserId === userId && this.messageChannel && this.threadChannel) {
+        return;
+      }
+
+      this.currentUserId = userId;
       this.clearUnread();
-      this.unsubscribe();
-      return;
-    }
+      await this.subscribeForUser(userId);
+    })();
 
-    if (this.currentUserId === userId && this.messageChannel && this.threadChannel) {
-      return;
+    try {
+      await this.resetInFlight;
+    } finally {
+      this.resetInFlight = null;
     }
-
-    this.currentUserId = userId;
-    this.clearUnread();
-    await this.subscribeForUser(userId);
   }
 
   private async subscribeForUser(userId: string) {

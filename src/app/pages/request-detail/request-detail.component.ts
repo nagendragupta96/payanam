@@ -30,8 +30,8 @@ import { RequestRecord, RequestService } from '../../services/request.service';
           </p>
 
           <form *ngIf="isRequester" [formGroup]="form" (ngSubmit)="saveMessage()" class="mb-3">
-            <label class="form-label">Message</label>
-            <textarea rows="3" class="form-control mb-2" formControlName="message" placeholder="Add note to request"></textarea>
+            <label class="form-label">Message (Optional) <span class="info-icon" tabindex="0" title="Add context for the trip owner, such as baggage size or travel preferences." aria-label="Request message help">ⓘ</span></label>
+            <textarea rows="3" class="form-control mb-2" formControlName="message"></textarea>
             <button class="btn btn-primary btn-sm" [disabled]="savingMessage">
               <span *ngIf="savingMessage" class="spinner-border spinner-border-sm me-2"></span>
               Save Request
@@ -48,7 +48,18 @@ import { RequestRecord, RequestService } from '../../services/request.service';
         </div>
       </div>
     </div>
-  `
+  `,
+  styles: [
+    `
+      .info-icon {
+        display: inline-block;
+        margin-left: 0.35rem;
+        font-size: 0.85rem;
+        color: #0d6efd;
+        cursor: help;
+      }
+    `
+  ]
 })
 export class RequestDetailComponent {
   loading = false;

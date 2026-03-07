@@ -24,35 +24,35 @@ import { ItineraryService } from '../../services/itinerary.service';
 
           <div class="row g-2 mb-2">
             <div class="col-md-6">
-              <label class="form-label" for="originAirport">Origin Airport Code <span class="text-danger">*</span></label>
-              <input id="originAirport" class="form-control text-uppercase" formControlName="origin_airport_code" placeholder="e.g. DXB" maxlength="4" (input)="uppercaseControl('origin_airport_code')" [class.is-invalid]="isFieldInvalid('origin_airport_code')" />
+              <label class="form-label" for="originAirport">Origin Airport Code <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Enter the starting airport code, for example JFK or HYD." aria-label="Origin airport help">ⓘ</span></label>
+              <input id="originAirport" class="form-control text-uppercase" formControlName="origin_airport_code" maxlength="4" (input)="uppercaseControl('origin_airport_code')" [class.is-invalid]="isFieldInvalid('origin_airport_code')" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('origin_airport_code')">Origin airport code is required (3–4 letters).</div>
             </div>
             <div class="col-md-6">
-              <label class="form-label" for="destinationAirport">Destination Airport Code <span class="text-danger">*</span></label>
-              <input id="destinationAirport" class="form-control text-uppercase" formControlName="destination_airport_code" placeholder="e.g. HND" maxlength="4" (input)="uppercaseControl('destination_airport_code')" [class.is-invalid]="isFieldInvalid('destination_airport_code')" />
+              <label class="form-label" for="destinationAirport">Destination Airport Code <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Enter the destination airport code, for example DXB or SIN." aria-label="Destination airport help">ⓘ</span></label>
+              <input id="destinationAirport" class="form-control text-uppercase" formControlName="destination_airport_code" maxlength="4" (input)="uppercaseControl('destination_airport_code')" [class.is-invalid]="isFieldInvalid('destination_airport_code')" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('destination_airport_code')">Destination airport code is required (3–4 letters).</div>
             </div>
           </div>
 
           <div class="mb-2">
             <label class="form-label" for="destinationLabel">Destination (Optional)</label>
-            <input id="destinationLabel" class="form-control" formControlName="destination" placeholder="Destination city/country" />
+            <input id="destinationLabel" class="form-control" formControlName="destination" />
           </div>
 
           <div class="mb-2">
             <label class="form-label" for="tripNotes">Trip Notes (Optional)</label>
-            <textarea id="tripNotes" rows="2" class="form-control" formControlName="notes" placeholder="Any additional travel notes"></textarea>
+            <textarea id="tripNotes" rows="2" class="form-control" formControlName="notes"></textarea>
           </div>
 
           <div class="row g-2 mb-2">
             <div class="col-md-6">
-              <label class="form-label" for="startDate">Start Date <span class="text-danger">*</span></label>
+              <label class="form-label" for="startDate">Start Date <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Select the first date of your trip." aria-label="Start date help">ⓘ</span></label>
               <input id="startDate" class="form-control date-input" type="date" formControlName="start_date" [attr.min]="today" [class.is-invalid]="isFieldInvalid('start_date')" (change)="closeNativePicker($event)" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('start_date')">Start date is required.</div>
             </div>
             <div class="col-md-6">
-              <label class="form-label" for="endDate">End Date <span class="text-danger">*</span></label>
+              <label class="form-label" for="endDate">End Date <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Select the final date of your trip." aria-label="End date help">ⓘ</span></label>
               <input id="endDate" class="form-control date-input" type="date" formControlName="end_date" [attr.min]="today" [class.is-invalid]="isFieldInvalid('end_date')" (change)="closeNativePicker($event)" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('end_date')">End date is required.</div>
             </div>
@@ -77,20 +77,20 @@ import { ItineraryService } from '../../services/itinerary.service';
 
               <div class="row g-2">
                 <div class="col-md-6">
-                  <label class="form-label">Leg {{ i + 1 }} Origin Airport Code <span class="text-danger">*</span></label>
-                  <input class="form-control text-uppercase" formControlName="origin_airport_code" placeholder="Origin airport code" maxlength="4" (input)="uppercaseLegControl(i, 'origin_airport_code')" [class.is-invalid]="isLegFieldInvalid(i, 'origin_airport_code')" />
+                  <label class="form-label">Leg {{ i + 1 }} Origin Airport Code <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Enter the starting airport code, for example JFK or HYD." aria-label="Origin airport help">ⓘ</span></label>
+                  <input class="form-control text-uppercase" formControlName="origin_airport_code" maxlength="4" (input)="uppercaseLegControl(i, 'origin_airport_code')" [class.is-invalid]="isLegFieldInvalid(i, 'origin_airport_code')" />
                   <div class="invalid-feedback" *ngIf="isLegFieldInvalid(i, 'origin_airport_code')">Origin airport code is required.</div>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Leg {{ i + 1 }} Destination Airport Code <span class="text-danger">*</span></label>
-                  <input class="form-control text-uppercase" formControlName="destination_airport_code" placeholder="Destination airport code" maxlength="4" (input)="uppercaseLegControl(i, 'destination_airport_code')" [class.is-invalid]="isLegFieldInvalid(i, 'destination_airport_code')" />
+                  <label class="form-label">Leg {{ i + 1 }} Destination Airport Code <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Enter the destination airport code, for example DXB or SIN." aria-label="Destination airport help">ⓘ</span></label>
+                  <input class="form-control text-uppercase" formControlName="destination_airport_code" maxlength="4" (input)="uppercaseLegControl(i, 'destination_airport_code')" [class.is-invalid]="isLegFieldInvalid(i, 'destination_airport_code')" />
                   <div class="invalid-feedback" *ngIf="isLegFieldInvalid(i, 'destination_airport_code')">Destination airport code is required.</div>
                 </div>
               </div>
               <div class="row g-2 mt-1">
                 <div class="col-md-12">
                   <label class="form-label">Flight Number <span class="text-danger">*</span></label>
-                  <input class="form-control text-uppercase" formControlName="flight_number" placeholder="Flight Number (e.g. QR738)" [class.is-invalid]="isLegFieldInvalid(i, 'flight_number')" />
+                  <input class="form-control text-uppercase" formControlName="flight_number" [class.is-invalid]="isLegFieldInvalid(i, 'flight_number')" />
                   <div class="invalid-feedback" *ngIf="isLegFieldInvalid(i, 'flight_number')">Flight number is required.</div>
                 </div>
               </div>
@@ -111,38 +111,52 @@ import { ItineraryService } from '../../services/itinerary.service';
 
           <div class="card border-0 bg-light mt-3">
             <div class="card-body">
-              <h3 class="h6 mb-3">Contact Details (Optional)</h3>
+              <h3 class="h6 mb-3">Contact Details (Optional) <span class="info-icon" tabindex="0" title="These details are shared only after your contact details request is accepted." aria-label="Contact details help">ⓘ</span></h3>
               <p class="small text-muted mb-3">These details are attached to this trip and can be shared only through approved contact details requests.</p>
 
               <div class="row g-2">
                 <div class="col-md-6">
                   <label class="form-label">Contact Name (Optional)</label>
-                  <input class="form-control" formControlName="contact_name" placeholder="Name" />
+                  <input class="form-control" formControlName="contact_name" />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Contact Phone (Optional)</label>
-                  <input class="form-control" formControlName="contact_phone" placeholder="Phone" />
+                  <input class="form-control" formControlName="contact_phone" />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Contact Email (Optional)</label>
-                  <input class="form-control" formControlName="contact_email" placeholder="Email" />
+                  <input class="form-control" formControlName="contact_email" />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Contact Notes (Optional)</label>
-                  <input class="form-control" formControlName="contact_notes" placeholder="Optional notes" />
+                  <input class="form-control" formControlName="contact_notes" />
                 </div>
               </div>
             </div>
           </div>
 
-          <button class="btn btn-primary mt-3" [disabled]="loading" type="submit">
-            <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
-            {{ isEditMode ? 'Save Itinerary Changes' : 'Publish itinerary' }}
-          </button>
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary" [disabled]="loading" type="submit">
+              <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
+              {{ isEditMode ? 'Save Itinerary Changes' : 'Publish itinerary' }}
+            </button>
+            <button *ngIf="isEditMode" class="btn btn-outline-secondary" type="button" [disabled]="loading" (click)="cancelEdit()">Cancel</button>
+          </div>
         </form>
       </div>
     </div>
-  `
+  `,
+  styles: [
+    `
+      .info-icon {
+        display: inline-block;
+        margin-left: 0.35rem;
+        font-size: 0.85rem;
+        color: #0d6efd;
+        cursor: help;
+      }
+    `
+  ]
 })
 export class CreateItineraryComponent {
   @ViewChild('errorAlert') errorAlert?: ElementRef<HTMLElement>;
@@ -154,6 +168,7 @@ export class CreateItineraryComponent {
   warningMessage = '';
   today = new Date().toISOString().slice(0, 10);
   itineraryId = this.route.snapshot.paramMap.get('id') ?? '';
+  private initialFormSnapshot = '';
 
   private readonly airportCodePattern = /^[A-Z]{3,4}$/;
 
@@ -255,6 +270,8 @@ export class CreateItineraryComponent {
           contact_notes: contact.data.notes ?? ''
         });
       }
+
+      this.initialFormSnapshot = JSON.stringify(this.form.getRawValue());
     } finally {
       this.loading = false;
     }
@@ -301,6 +318,22 @@ export class CreateItineraryComponent {
   isLegFieldInvalid(index: number, name: string): boolean {
     const control = this.legs.at(index).get(name);
     return !!control && control.invalid && (control.dirty || control.touched);
+  }
+
+  cancelEdit(): void {
+    if (!this.isEditMode) {
+      void this.router.navigate(['/my-trips']);
+      return;
+    }
+
+    const currentSnapshot = JSON.stringify(this.form.getRawValue());
+    const hasChanges = this.initialFormSnapshot && currentSnapshot !== this.initialFormSnapshot;
+    if (hasChanges) {
+      const confirmed = window.confirm('Discard unsaved itinerary changes?');
+      if (!confirmed) return;
+    }
+
+    void this.router.navigate(['/my-trips']);
   }
 
   async submit() {

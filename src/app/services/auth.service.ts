@@ -17,6 +17,12 @@ export class AuthService {
   constructor(private router: Router) {
     void this.loadSession();
 
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', this.onWindowFocus);
+      window.addEventListener('online', this.onWindowOnline);
+      document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
+
     supabase.auth.onAuthStateChange(async (event, session) => {
       this.setSession(session);
 
@@ -31,6 +37,21 @@ export class AuthService {
     });
 
   }
+
+
+  private onWindowFocus = () => {
+    void this.refreshSessionIfNeeded();
+  };
+
+  private onWindowOnline = () => {
+    void this.refreshSessionIfNeeded(true);
+  };
+
+  private onVisibilityChange = () => {
+    if (!document.hidden) {
+      void this.refreshSessionIfNeeded();
+    }
+  };
 
   get currentSession(): Session | null {
     return this.sessionSubject.value;

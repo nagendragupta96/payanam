@@ -22,29 +22,29 @@ import { ChatService } from '../../services/chat.service';
     <form [formGroup]="form" (ngSubmit)="search()" class="card card-body mb-4">
       <div class="row g-3">
         <div class="col-md-6 col-lg-3">
-          <label class="form-label">Origin Airport Code *</label>
-          <input class="form-control text-uppercase" formControlName="originAirportCode" placeholder="e.g. DXB" maxlength="4" (input)="uppercaseSearchControl('originAirportCode')" />
+          <label class="form-label">Origin Airport Code * <span class="info-icon" tabindex="0" title="Enter departure airport code, for example JFK." aria-label="Origin help">ⓘ</span></label>
+          <input class="form-control text-uppercase" formControlName="originAirportCode" maxlength="4" (input)="uppercaseSearchControl('originAirportCode')" />
         </div>
         <div class="col-md-6 col-lg-3">
-          <label class="form-label">Destination Airport Code *</label>
-          <input class="form-control text-uppercase" formControlName="destinationAirportCode" placeholder="e.g. HND" maxlength="4" (input)="uppercaseSearchControl('destinationAirportCode')" />
+          <label class="form-label">Destination Airport Code * <span class="info-icon" tabindex="0" title="Enter arrival airport code, for example HYD." aria-label="Destination help">ⓘ</span></label>
+          <input class="form-control text-uppercase" formControlName="destinationAirportCode" maxlength="4" (input)="uppercaseSearchControl('destinationAirportCode')" />
         </div>
         <div class="col-md-6 col-lg-3">
-          <label class="form-label">Start Date *</label>
+          <label class="form-label">Start Date * <span class="info-icon" tabindex="0" title="Trips starting on or after this date will be returned." aria-label="Start date help">ⓘ</span></label>
           <input type="date" class="form-control date-input" formControlName="searchStartDate" (change)="closeNativePicker($event)" />
         </div>
         <div class="col-md-6 col-lg-3">
-          <label class="form-label">End Date *</label>
+          <label class="form-label">End Date * <span class="info-icon" tabindex="0" title="Trips ending on or before this date will be returned." aria-label="End date help">ⓘ</span></label>
           <input type="date" class="form-control date-input" formControlName="searchEndDate" (change)="closeNativePicker($event)" />
         </div>
 
         <div class="col-md-6">
           <label class="form-label">Stop1 Airport Code (optional)</label>
-          <input class="form-control text-uppercase" formControlName="stop1AirportCode" placeholder="Matches leg_order=1 destination" maxlength="4" (input)="uppercaseSearchControl('stop1AirportCode')" />
+          <input class="form-control text-uppercase" formControlName="stop1AirportCode" maxlength="4" (input)="uppercaseSearchControl('stop1AirportCode')" />
         </div>
         <div class="col-md-6">
           <label class="form-label">Stop2 Airport Code (optional)</label>
-          <input class="form-control text-uppercase" formControlName="stop2AirportCode" placeholder="Matches leg_order=2 destination" maxlength="4" (input)="uppercaseSearchControl('stop2AirportCode')" />
+          <input class="form-control text-uppercase" formControlName="stop2AirportCode" maxlength="4" (input)="uppercaseSearchControl('stop2AirportCode')" />
         </div>
       </div>
 
@@ -148,10 +148,10 @@ import { ChatService } from '../../services/chat.service';
               <h6>Contact Details</h6>
               <div *ngIf="isSelfTrip; else requesterContactBlock">
                 <div class="row g-2">
-                  <div class="col-md-6"><input class="form-control" [(ngModel)]="contactForm.contact_name" [ngModelOptions]="{standalone: true}" placeholder="Contact name" /></div>
-                  <div class="col-md-6"><input class="form-control" [(ngModel)]="contactForm.contact_phone" [ngModelOptions]="{standalone: true}" placeholder="Contact phone" /></div>
-                  <div class="col-md-6"><input class="form-control" [(ngModel)]="contactForm.contact_email" [ngModelOptions]="{standalone: true}" placeholder="Contact email" /></div>
-                  <div class="col-md-12"><textarea class="form-control" [(ngModel)]="contactForm.notes" [ngModelOptions]="{standalone: true}" rows="2" placeholder="Notes"></textarea></div>
+                  <div class="col-md-6"><label class="form-label">Contact Name <span class="info-icon" tabindex="0" title="Name shared after contact details request is approved." aria-label="Contact name help">ⓘ</span></label><input class="form-control" [(ngModel)]="contactForm.contact_name" [ngModelOptions]="{standalone: true}" /></div>
+                  <div class="col-md-6"><label class="form-label">Contact Phone <span class="info-icon" tabindex="0" title="Include country code for reliable contact." aria-label="Contact phone help">ⓘ</span></label><input class="form-control" [(ngModel)]="contactForm.contact_phone" [ngModelOptions]="{standalone: true}" /></div>
+                  <div class="col-md-6"><label class="form-label">Contact Email <span class="info-icon" tabindex="0" title="Email shared with approved contact requests only." aria-label="Contact email help">ⓘ</span></label><input class="form-control" [(ngModel)]="contactForm.contact_email" [ngModelOptions]="{standalone: true}" /></div>
+                  <div class="col-md-12"><label class="form-label">Notes (Optional) <span class="info-icon" tabindex="0" title="Any optional directions for contacting you." aria-label="Contact notes help">ⓘ</span></label><textarea class="form-control" [(ngModel)]="contactForm.notes" [ngModelOptions]="{standalone: true}" rows="2"></textarea></div>
                 </div>
                 <button class="btn btn-sm btn-success mt-2" [disabled]="savingContact" (click)="saveContactDetails()">
                   <span *ngIf="savingContact" class="spinner-border spinner-border-sm me-2"></span>
@@ -182,6 +182,7 @@ import { ChatService } from '../../services/chat.service';
     `
       .trip-modal { z-index: 1060; }
       .trip-modal-backdrop { z-index: 1050; }
+      .info-icon { margin-left: .35rem; font-size: .85rem; color: #0d6efd; cursor: help; }
     `
   ]
 })
