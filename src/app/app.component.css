@@ -1,0 +1,56 @@
+.app-shell {
+  background: radial-gradient(circle at top right, #f1f7ff 0%, #fcfdff 40%, #f7fbff 100%);
+}
+
+.nav-link {
+  border-radius: 0.5rem;
+  color: var(--bs-primary);
+  font-weight: 500;
+}
+
+.nav-link.active {
+  background-color: var(--bs-primary);
+  color: #fff;
+}
+
+.brand-icon {
+  font-size: 1.2rem;
+}
+
+textarea,
+input {
+  margin: 0.25rem 0;
+}
+
+.modal {
+  z-index: 1060;
+}
+
+.modal-backdrop {
+  z-index: 1050;
+}
+
+
+.menu-count-badge {
+  top: 0.35rem !important;
+  right: 0.2rem;
+  left: auto !important;
+  transform: none !important;
+  font-size: 0.65rem;
+  min-width: 1.2rem;
+}
+
+
+.nav-profile-link {
+  min-height: 2.25rem;
+}
+
+.nav-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #d0d7e2;
+  background: #eef2f7;
+  flex: 0 0 auto;
+}
