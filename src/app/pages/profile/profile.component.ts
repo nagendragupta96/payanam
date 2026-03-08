@@ -15,18 +15,19 @@ import { AuthService } from '../../services/auth.service';
 
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
+            <div class="alert alert-info" *ngIf="helpMessage">{{ helpMessage }}</div>
 
         <form [formGroup]="form" (ngSubmit)="save()" novalidate>
           <div class="mb-3">
             <label class="form-label" for="displayName">Display Name (Optional)
-              <span class="info-icon" tabindex="0" title="This is how other users will see your name." aria-label="Display name help">ⓘ</span>
+              <button type="button" class="info-icon" (click)="showHelp('This is how other users will see your name.')" aria-label="Display name help">ⓘ</button>
             </label>
             <input id="displayName" class="form-control" formControlName="displayName" />
           </div>
 
           <div class="mb-3">
             <label class="form-label" for="avatarUrl">Avatar URL (Optional)
-              <span class="info-icon" tabindex="0" title="Paste an image URL if you want a profile picture." aria-label="Avatar URL help">ⓘ</span>
+              <button type="button" class="info-icon" (click)="showHelp('Paste an image URL if you want a profile picture.')" aria-label="Avatar URL help">ⓘ</button>
             </label>
             <input id="avatarUrl" class="form-control" formControlName="avatarUrl" />
           </div>
@@ -60,7 +61,15 @@ import { AuthService } from '../../services/auth.service';
         margin-left: 0.35rem;
         font-size: 0.85rem;
         color: #0d6efd;
-        cursor: help;
+        cursor: pointer;
+        border: 1px solid #0d6efd;
+        border-radius: 999px;
+        background: #fff;
+        width: 1.5rem;
+        height: 1.5rem;
+        line-height: 1;
+        text-align: center;
+        padding: 0;
       }
     `
   ]
@@ -68,6 +77,7 @@ import { AuthService } from '../../services/auth.service';
 export class ProfileComponent {
   errorMessage = '';
   infoMessage = '';
+  helpMessage = '';
   savingProfile = false;
   deletingAccount = false;
 
@@ -108,6 +118,7 @@ export class ProfileComponent {
     this.savingProfile = true;
     this.errorMessage = '';
     this.infoMessage = '';
+    this.helpMessage = '';
 
     try {
       const { error } = await supabase.from('profiles').upsert({
@@ -136,6 +147,7 @@ export class ProfileComponent {
     this.deletingAccount = true;
     this.errorMessage = '';
     this.infoMessage = '';
+    this.helpMessage = '';
 
     try {
       const error = await this.authService.deleteCurrentAccount();
@@ -148,5 +160,9 @@ export class ProfileComponent {
     } finally {
       this.deletingAccount = false;
     }
+  }
+
+  showHelp(message: string): void {
+    this.helpMessage = message;
   }
 }

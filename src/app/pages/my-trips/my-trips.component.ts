@@ -16,28 +16,28 @@ import { ItineraryService } from '../../services/itinerary.service';
         <h2 class="h4 mb-3">My Trips</h2>
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
-        <button class="btn btn-outline-primary btn-sm mb-3" (click)="load()">Refresh</button>
+        <button class="btn btn-outline-primary btn-sm mb-3" (click)="refresh()">Refresh</button>
 
         <div class="table-responsive" *ngIf="trips.length; else empty">
           <table class="table table-striped align-middle">
             <thead>
               <tr>
+                <th>Actions</th>
                 <th>Route</th>
                 <th>Destination</th>
                 <th>Dates</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let trip of trips">
+                <td><div class="d-flex flex-wrap gap-2">
+                  <a class="btn btn-sm btn-outline-primary" [routerLink]="['/itinerary', trip.id]">View</a>
+                  <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/edit-itinerary', trip.id]">Edit Itinerary</a>
+                  <button class="btn btn-sm btn-outline-danger" (click)="deleteTrip(trip.id!)">Delete</button>
+                </div></td>
                 <td>{{ trip.origin_airport_code }} → {{ trip.destination_airport_code }}</td>
                 <td>{{ trip.destination || '-' }}</td>
                 <td class="date-cell">{{ trip.start_date }} → {{ trip.end_date || 'One way' }}</td>
-                <td>
-                  <a class="btn btn-sm btn-outline-primary me-2" [routerLink]="['/itinerary', trip.id]">View</a>
-                  <a class="btn btn-sm btn-outline-secondary me-2" [routerLink]="['/edit-itinerary', trip.id]">Edit Itinerary</a>
-                  <button class="btn btn-sm btn-outline-danger" (click)="deleteTrip(trip.id!)">Delete</button>
-                </td>
               </tr>
             </tbody>
           </table>
@@ -59,6 +59,12 @@ export class MyTripsComponent {
     });
 
     this.load();
+  }
+
+  async refresh() {
+    this.errorMessage = '';
+    this.infoMessage = '';
+    await this.load();
   }
 
   async load() {

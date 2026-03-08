@@ -18,6 +18,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
 
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
+            <div class="alert alert-info" *ngIf="helpMessage">{{ helpMessage }}</div>
 
         <div *ngIf="loading" class="text-center py-4"><div class="spinner-border"></div></div>
 
@@ -30,7 +31,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
           </p>
 
           <form *ngIf="isRequester" [formGroup]="form" (ngSubmit)="saveMessage()" class="mb-3">
-            <label class="form-label">Message (Optional) <span class="info-icon" tabindex="0" title="Add context for the trip owner, such as baggage size or travel preferences." aria-label="Request message help">ⓘ</span></label>
+            <label class="form-label">Message (Optional) <button type="button" class="info-icon" (click)="showHelp('Add context for the trip owner, such as baggage size or travel preferences.')" aria-label="Request message help">ⓘ</button></label>
             <textarea rows="3" class="form-control mb-2" formControlName="message"></textarea>
             <button class="btn btn-primary btn-sm" [disabled]="savingMessage">
               <span *ngIf="savingMessage" class="spinner-border spinner-border-sm me-2"></span>
@@ -63,7 +64,15 @@ import { RequestRecord, RequestService } from '../../services/request.service';
         margin-left: 0.35rem;
         font-size: 0.85rem;
         color: #0d6efd;
-        cursor: help;
+        cursor: pointer;
+        border: 1px solid #0d6efd;
+        border-radius: 999px;
+        background: #fff;
+        width: 1.5rem;
+        height: 1.5rem;
+        line-height: 1;
+        text-align: center;
+        padding: 0;
       }
     `
   ]
@@ -75,6 +84,7 @@ export class RequestDetailComponent {
   deciding = false;
   errorMessage = '';
   infoMessage = '';
+  helpMessage = '';
 
   request: RequestRecord | null = null;
 
@@ -113,6 +123,7 @@ export class RequestDetailComponent {
     this.loading = true;
     this.errorMessage = '';
     this.infoMessage = '';
+    this.helpMessage = '';
 
     try {
       const result = await this.requestService.getRequestByIdForUser(requestId, userId);
@@ -136,6 +147,7 @@ export class RequestDetailComponent {
     this.savingMessage = true;
     this.errorMessage = '';
     this.infoMessage = '';
+    this.helpMessage = '';
 
     try {
       const error = await this.requestService.updateRequestMessage(this.request.id, userId, this.form.value.message ?? null);
@@ -169,6 +181,7 @@ export class RequestDetailComponent {
     this.cancelling = true;
     this.errorMessage = '';
     this.infoMessage = '';
+    this.helpMessage = '';
 
     try {
       const error = await this.requestService.cancelRequest(this.request.id, userId);
@@ -192,6 +205,7 @@ export class RequestDetailComponent {
     this.deciding = true;
     this.errorMessage = '';
     this.infoMessage = '';
+    this.helpMessage = '';
 
     try {
       if (status === 'ACCEPTED') {
@@ -216,5 +230,9 @@ export class RequestDetailComponent {
     } finally {
       this.deciding = false;
     }
+  }
+
+  showHelp(message: string): void {
+    this.helpMessage = message;
   }
 }

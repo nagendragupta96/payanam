@@ -14,7 +14,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h2 class="h4 mb-0">Requests</h2>
-          <button class="btn btn-outline-primary btn-sm" (click)="load()" [disabled]="loading">
+          <button class="btn btn-outline-primary btn-sm" (click)="refresh()" [disabled]="loading">
             <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
             Refresh
           </button>
@@ -119,6 +119,12 @@ export class RequestsInboxComponent {
 
   isContactDetailsRequest(request: RequestRecord): boolean {
     return request.request_type === 'CONTACT_DETAILS';
+  }
+
+  async refresh() {
+    this.errorMessage = '';
+    this.infoMessage = '';
+    await this.load();
   }
 
   async load() {

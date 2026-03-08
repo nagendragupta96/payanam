@@ -13,6 +13,7 @@ import { Itinerary } from '../../models/itinerary.model';
   template: `
     <div class="card shadow-sm">
       <div class="card-body">
+        <button class="btn btn-link p-0 mb-2" type="button" (click)="goBack()">← Back</button>
         <h2 class="h4">Trip Detail</h2>
 
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
@@ -51,6 +52,15 @@ export class ItineraryDetailComponent {
   infoMessage = '';
   loading = false;
   loadingSend = false;
+
+  async goBack() {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+
+    await this.router.navigate(['/my-trips']);
+  }
 
   constructor(
     private route: ActivatedRoute,

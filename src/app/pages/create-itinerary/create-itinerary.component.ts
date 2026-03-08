@@ -13,10 +13,12 @@ import { ItineraryService } from '../../services/itinerary.service';
   template: `
     <div class="card shadow-sm">
       <div class="card-body">
+        <button class="btn btn-link p-0 mb-2" type="button" (click)="goBack()">← Back</button>
         <h2 class="h4 mb-3">{{ isEditMode ? 'Edit Itinerary' : 'Post Trip' }}</h2>
 
         <div #errorAlert tabindex="-1" class="alert alert-danger" *ngIf="errorMessage" role="alert">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
+            <div class="alert alert-info" *ngIf="helpMessage">{{ helpMessage }}</div>
         <div class="alert alert-warning" *ngIf="warningMessage">{{ warningMessage }}</div>
 
         <form #tripFormEl [formGroup]="form" (ngSubmit)="submit()" novalidate>
@@ -24,12 +26,12 @@ import { ItineraryService } from '../../services/itinerary.service';
 
           <div class="row g-2 mb-2">
             <div class="col-md-6">
-              <label class="form-label" for="originAirport">Origin Airport Code <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Enter the starting airport code, for example JFK or HYD." aria-label="Origin airport help">ⓘ</span></label>
+              <label class="form-label" for="originAirport">Origin Airport Code <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Enter the starting airport code, for example JFK or HYD.')" aria-label="Origin airport help">ⓘ</button></label>
               <input id="originAirport" class="form-control text-uppercase" formControlName="origin_airport_code" maxlength="4" (input)="uppercaseControl('origin_airport_code')" [class.is-invalid]="isFieldInvalid('origin_airport_code')" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('origin_airport_code')">Origin airport code is required (3–4 letters).</div>
             </div>
             <div class="col-md-6">
-              <label class="form-label" for="destinationAirport">Destination Airport Code <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Enter the destination airport code, for example DXB or SIN." aria-label="Destination airport help">ⓘ</span></label>
+              <label class="form-label" for="destinationAirport">Destination Airport Code <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Enter the destination airport code, for example DXB or SIN.')" aria-label="Destination airport help">ⓘ</button></label>
               <input id="destinationAirport" class="form-control text-uppercase" formControlName="destination_airport_code" maxlength="4" (input)="uppercaseControl('destination_airport_code')" [class.is-invalid]="isFieldInvalid('destination_airport_code')" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('destination_airport_code')">Destination airport code is required (3–4 letters).</div>
             </div>
@@ -47,12 +49,12 @@ import { ItineraryService } from '../../services/itinerary.service';
 
           <div class="row g-2 mb-2">
             <div class="col-md-6">
-              <label class="form-label" for="startDate">Start Date <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Select the first date of your trip." aria-label="Start date help">ⓘ</span></label>
+              <label class="form-label" for="startDate">Start Date <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Select the first date of your trip.')" aria-label="Start date help">ⓘ</button></label>
               <input id="startDate" class="form-control date-input" type="date" formControlName="start_date" [attr.min]="today" [class.is-invalid]="isFieldInvalid('start_date')" (change)="closeNativePicker($event)" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('start_date')">Start date is required.</div>
             </div>
             <div class="col-md-6">
-              <label class="form-label" for="endDate">End Date <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Select the final date of your trip." aria-label="End date help">ⓘ</span></label>
+              <label class="form-label" for="endDate">End Date <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Select the final date of your trip.')" aria-label="End date help">ⓘ</button></label>
               <input id="endDate" class="form-control date-input" type="date" formControlName="end_date" [attr.min]="today" [class.is-invalid]="isFieldInvalid('end_date')" (change)="closeNativePicker($event)" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('end_date')">End date is required.</div>
             </div>
@@ -77,12 +79,12 @@ import { ItineraryService } from '../../services/itinerary.service';
 
               <div class="row g-2">
                 <div class="col-md-6">
-                  <label class="form-label">Leg {{ i + 1 }} Origin Airport Code <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Enter the starting airport code, for example JFK or HYD." aria-label="Origin airport help">ⓘ</span></label>
+                  <label class="form-label">Leg {{ i + 1 }} Origin Airport Code <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Enter the starting airport code, for example JFK or HYD.')" aria-label="Origin airport help">ⓘ</button></label>
                   <input class="form-control text-uppercase" formControlName="origin_airport_code" maxlength="4" (input)="uppercaseLegControl(i, 'origin_airport_code')" [class.is-invalid]="isLegFieldInvalid(i, 'origin_airport_code')" />
                   <div class="invalid-feedback" *ngIf="isLegFieldInvalid(i, 'origin_airport_code')">Origin airport code is required.</div>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Leg {{ i + 1 }} Destination Airport Code <span class="text-danger">*</span><span class="info-icon" tabindex="0" title="Enter the destination airport code, for example DXB or SIN." aria-label="Destination airport help">ⓘ</span></label>
+                  <label class="form-label">Leg {{ i + 1 }} Destination Airport Code <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Enter the destination airport code, for example DXB or SIN.')" aria-label="Destination airport help">ⓘ</button></label>
                   <input class="form-control text-uppercase" formControlName="destination_airport_code" maxlength="4" (input)="uppercaseLegControl(i, 'destination_airport_code')" [class.is-invalid]="isLegFieldInvalid(i, 'destination_airport_code')" />
                   <div class="invalid-feedback" *ngIf="isLegFieldInvalid(i, 'destination_airport_code')">Destination airport code is required.</div>
                 </div>
@@ -111,7 +113,7 @@ import { ItineraryService } from '../../services/itinerary.service';
 
           <div class="card border-0 bg-light mt-3">
             <div class="card-body">
-              <h3 class="h6 mb-3">Contact Details (Optional) <span class="info-icon" tabindex="0" title="These details are shared only after your contact details request is accepted." aria-label="Contact details help">ⓘ</span></h3>
+              <h3 class="h6 mb-3">Contact Details (Optional) <button type="button" class="info-icon" (click)="showHelp('These details are shared only after your contact details request is accepted.')" aria-label="Contact details help">ⓘ</button></h3>
               <p class="small text-muted mb-3">These details are attached to this trip and can be shared only through approved contact details requests.</p>
 
               <div class="row g-2">
@@ -153,7 +155,15 @@ import { ItineraryService } from '../../services/itinerary.service';
         margin-left: 0.35rem;
         font-size: 0.85rem;
         color: #0d6efd;
-        cursor: help;
+        cursor: pointer;
+        border: 1px solid #0d6efd;
+        border-radius: 999px;
+        background: #fff;
+        width: 1.5rem;
+        height: 1.5rem;
+        line-height: 1;
+        text-align: center;
+        padding: 0;
       }
     `
   ]
@@ -165,6 +175,7 @@ export class CreateItineraryComponent {
   loading = false;
   errorMessage = '';
   infoMessage = '';
+  helpMessage = '';
   warningMessage = '';
   today = new Date().toISOString().slice(0, 10);
   itineraryId = this.route.snapshot.paramMap.get('id') ?? '';
@@ -192,6 +203,15 @@ export class CreateItineraryComponent {
 
   get legs(): FormArray {
     return this.form.get('legs') as FormArray;
+  }
+
+  async goBack() {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+
+    await this.router.navigate(['/my-trips']);
   }
 
   constructor(
@@ -342,6 +362,7 @@ export class CreateItineraryComponent {
 
     this.errorMessage = '';
     this.infoMessage = '';
+    this.helpMessage = '';
     this.warningMessage = '';
 
     if (this.form.invalid) {
@@ -451,5 +472,9 @@ export class CreateItineraryComponent {
       const firstInvalid = this.tripFormEl?.nativeElement.querySelector('.ng-invalid') as HTMLElement | null;
       firstInvalid?.focus();
     }, 0);
+  }
+
+  showHelp(message: string): void {
+    this.helpMessage = message;
   }
 }

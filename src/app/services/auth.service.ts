@@ -300,7 +300,12 @@ export class AuthService implements OnDestroy {
   async login(email: string, password: string): Promise<string | null> {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return error.message;
+      if (error) {
+        if (this.isAccountNotFoundError(error.message)) {
+          return 'Account does not exist. Please sign up first.';
+        }
+        return error.message;
+      }
 
       this.setSession(data.session);
 
@@ -558,6 +563,12 @@ export class AuthService implements OnDestroy {
   private isExistingEmailError(message: string): boolean {
     const text = message.toLowerCase();
     return text.includes('already registered') || text.includes('already been registered') || text.includes('user already registered');
+  }
+
+
+  private isAccountNotFoundError(message: string): boolean {
+    const text = (message || '').toLowerCase();
+    return text.includes('invalid login credentials') || text.includes('user not found') || text.includes('account does not exist');
   }
 
   private isNetworkFetchError(message: string): boolean {

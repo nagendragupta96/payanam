@@ -30,25 +30,26 @@ import { AuthService } from '../../services/auth.service';
 
             <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
             <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
+            <div class="alert alert-info" *ngIf="helpMessage">{{ helpMessage }}</div>
 
             <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
               <div class="mb-2">
                 <label class="form-label" for="authEmail">Email Address <span class="text-danger">*</span>
-                  <span class="info-icon" tabindex="0" title="Use the email address for your Payanam account." aria-label="Email help">ⓘ</span>
+                  <button type="button" class="info-icon" (click)="showHelp('Use the email address for your Payanam account.')" aria-label="Email help">ⓘ</button>
                 </label>
                 <input id="authEmail" class="form-control" formControlName="email" />
               </div>
 
               <div class="mb-2">
                 <label class="form-label" for="authPassword">Password <span class="text-danger">*</span>
-                  <span class="info-icon" tabindex="0" title="Password must be at least 6 characters." aria-label="Password help">ⓘ</span>
+                  <button type="button" class="info-icon" (click)="showHelp('Password must be at least 6 characters.')" aria-label="Password help">ⓘ</button>
                 </label>
                 <input id="authPassword" class="form-control" type="password" formControlName="password" />
               </div>
 
               <div class="mb-3" *ngIf="mode === 'signup'">
                 <label class="form-label" for="displayName">Display Name <span class="text-danger">*</span>
-                  <span class="info-icon" tabindex="0" title="This name is shown to other users in requests and chat." aria-label="Display name help">ⓘ</span>
+                  <button type="button" class="info-icon" (click)="showHelp('This name is shown to other users in requests and chat.')" aria-label="Display name help">ⓘ</button>
                 </label>
                 <input id="displayName" class="form-control" formControlName="displayName" />
               </div>
@@ -106,7 +107,15 @@ import { AuthService } from '../../services/auth.service';
         margin-left: 0.35rem;
         font-size: 0.85rem;
         color: #0d6efd;
-        cursor: help;
+        cursor: pointer;
+        border: 1px solid #0d6efd;
+        border-radius: 999px;
+        background: #fff;
+        width: 1.5rem;
+        height: 1.5rem;
+        line-height: 1;
+        text-align: center;
+        padding: 0;
       }
     `
   ]
@@ -115,6 +124,7 @@ export class AuthComponent implements OnDestroy {
   mode: 'login' | 'signup' = 'login';
   errorMessage = '';
   infoMessage = '';
+  helpMessage = '';
   loading = false;
 
   private authSubscription: Subscription;
@@ -147,6 +157,7 @@ export class AuthComponent implements OnDestroy {
     this.mode = this.mode === 'login' ? 'signup' : 'login';
     this.errorMessage = '';
     this.infoMessage = '';
+    this.helpMessage = '';
 
     const displayNameCtrl = this.form.get('displayName');
     if (this.mode === 'signup') {
@@ -162,6 +173,7 @@ export class AuthComponent implements OnDestroy {
     this.loading = true;
     this.errorMessage = '';
     this.infoMessage = '';
+    this.helpMessage = '';
 
     try {
       const { email, password, displayName } = this.form.getRawValue();
@@ -191,6 +203,7 @@ export class AuthComponent implements OnDestroy {
     this.loading = true;
     this.errorMessage = '';
     this.infoMessage = '';
+    this.helpMessage = '';
 
     try {
       const error = await this.authService.loginWithOAuth('google');
@@ -203,5 +216,9 @@ export class AuthComponent implements OnDestroy {
     } finally {
       this.loading = false;
     }
+  }
+
+  showHelp(message: string): void {
+    this.helpMessage = message;
   }
 }
