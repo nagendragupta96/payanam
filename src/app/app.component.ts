@@ -99,7 +99,8 @@ export class AppComponent implements OnDestroy {
 
     const hiddenMs = this.hiddenAt ? Date.now() - this.hiddenAt : 0;
     this.log('visibilitychange -> visible', { hiddenMs });
-    void this.runForegroundValidation(hiddenMs > 10_000);
+    // Always force validation when returning to a visible tab to avoid throttling stale sessions.
+    void this.runForegroundValidation(true);
   };
 
   private async runForegroundValidation(force = false) {
