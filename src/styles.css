@@ -1,0 +1,87 @@
+/* You can add global styles to this file, and also import other style files */
+
+.card > .card-body {
+  background-color: #f8f9fc;
+}
+
+.card > .card-body .text-muted {
+  color: #5f6b7a !important;
+}
+
+.date-cell {
+  white-space: nowrap;
+}
+
+input[type='date'],
+input[type='datetime-local'] {
+  min-height: 2.75rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-right: 2.5rem;
+  text-align: left;
+  appearance: auto;
+  -webkit-appearance: auto;
+}
+
+input[type='date']::-webkit-date-and-time-value,
+input[type='datetime-local']::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  display: block;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.date-input {
+  width: 100%;
+  max-width: 100%;
+  touch-action: manipulation;
+}
+
+
+.table-responsive {
+  overflow-x: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+.table-responsive::-webkit-scrollbar {
+  height: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background-color: rgba(13, 110, 253, 0.45);
+  border-radius: 999px;
+}
+
+.route-cell,
+.date-cell {
+  white-space: nowrap;
+}
+
+
+
+.table-scroll-hint {
+  font-size: 0.75rem;
+  color: #5f6b7a;
+  margin-bottom: 0.25rem;
+}
+
+.table-responsive.has-scroll-hint {
+  position: relative;
+}
+
+.table-responsive.has-scroll-hint::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 16px;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(to left, rgba(248, 249, 252, 0.95), rgba(248, 249, 252, 0));
+}
