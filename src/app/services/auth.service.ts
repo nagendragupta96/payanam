@@ -13,7 +13,7 @@ export class AuthService implements OnDestroy {
   readonly authError$ = this.authErrorSubject.asObservable();
   private sessionCheckInFlight: Promise<void> | null = null;
   private readonly sessionTimeoutMs = 8000;
-  private readonly foregroundValidationTimeoutMs = 2500;
+  private readonly foregroundValidationTimeoutMs = 6000;
   private initialized = false;
   private initPromise: Promise<void> | null = null;
   private lastForegroundValidationAt = 0;
@@ -110,10 +110,10 @@ export class AuthService implements OnDestroy {
     }
 
     this.lastForegroundValidationAt = now;
+    const hadSession = !!this.currentSession?.user;
     this.foregroundValidationInFlight = (async () => {
       try {
         this.debug('Foreground validation start', { force });
-        const hadSession = !!this.currentSession?.user;
         const { data, error } = await this.withTimeout(supabase.auth.getSession(), this.foregroundValidationTimeoutMs);
         if (error) {
           this.debug('Foreground validation ended with Supabase error', { message: error.message });
@@ -144,7 +144,26 @@ export class AuthService implements OnDestroy {
           await this.handleSignedOutState();
         }
       } catch {
-        this.debug('Foreground validation failed due to timeout/network; leaving current state untouched');
+        this.debug('Foreground validation timeout/network on first attempt; retrying once');
+
+        try {
+          await this.wait(500);
+          const retry = await this.withTimeout(supabase.auth.getSession(), this.sessionTimeoutMs);
+          const retrySession = retry.data.session;
+          this.debug('Foreground validation retry result', { hasSession: !!retrySession?.user });
+
+          if (retrySession?.user) {
+            this.setSession(retrySession);
+            this.clearAuthError();
+            return;
+          }
+
+          if (hadSession) {
+            this.setAuthError('Connection interrupted. Reconnecting your session...');
+          }
+        } catch {
+          this.debug('Foreground validation retry failed; leaving current state untouched');
+        }
       }
     })();
 
