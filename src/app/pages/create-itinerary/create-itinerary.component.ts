@@ -3,6 +3,7 @@ import { Component, ElementRef, ViewChild } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { HelpIconComponent } from '../../shared/help-icon.component';
 import { ItineraryContactService } from '../../services/itinerary-contact.service';
 import { ItineraryService } from '../../services/itinerary.service';
 import { AirportAutocompleteService, AirportEntry } from '../../services/airport-autocomplete.service';
@@ -10,7 +11,7 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
 @Component({
   selector: 'app-create-itinerary',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, HelpIconComponent],
   template: `
     <div class="card shadow-sm">
       <div class="card-body">
@@ -19,7 +20,6 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
 
         <div #errorAlert tabindex="-1" class="alert alert-danger" *ngIf="errorMessage" role="alert">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
-            <div class="alert alert-info" *ngIf="helpMessage">{{ helpMessage }}</div>
         <div class="alert alert-warning" *ngIf="warningMessage">{{ warningMessage }}</div>
 
         <form #tripFormEl [formGroup]="form" (ngSubmit)="submit()" novalidate>
@@ -27,36 +27,36 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
 
           <div class="row g-2 mb-2">
             <div class="col-md-6">
-              <label class="form-label" for="originAirport">Origin Airport Code <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Enter the starting airport code, for example JFK or HYD.')" aria-label="Origin airport help">ⓘ</button></label>
+              <label class="form-label" for="originAirport">Origin Airport Code <span class="text-danger">*</span><app-help-icon [text]="'Enter the starting airport code, for example JFK or HYD.'" ariaLabel="Origin airport help"></app-help-icon></label>
               <input id="originAirport" class="form-control text-uppercase" formControlName="origin_airport_code" maxlength="4" list="airportSuggestions" (input)="onAirportInput($event); uppercaseControl('origin_airport_code')" [class.is-invalid]="isFieldInvalid('origin_airport_code')" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('origin_airport_code')">Origin airport code is required (3–4 letters).</div>
             </div>
             <div class="col-md-6">
-              <label class="form-label" for="destinationAirport">Destination Airport Code <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Enter the destination airport code, for example DXB or SIN.')" aria-label="Destination airport help">ⓘ</button></label>
+              <label class="form-label" for="destinationAirport">Destination Airport Code <span class="text-danger">*</span><app-help-icon [text]="'Enter the destination airport code, for example DXB or SIN.'" ariaLabel="Destination airport help"></app-help-icon></label>
               <input id="destinationAirport" class="form-control text-uppercase" formControlName="destination_airport_code" maxlength="4" list="airportSuggestions" (input)="onAirportInput($event); uppercaseControl('destination_airport_code')" [class.is-invalid]="isFieldInvalid('destination_airport_code')" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('destination_airport_code')">Destination airport code is required (3–4 letters).</div>
             </div>
           </div>
 
           <div class="mb-2">
-            <label class="form-label" for="destinationLabel">Destination (Optional) <button type="button" class="info-icon" (click)="showHelp('Optional destination name, city, or region for better context.')" aria-label="Destination optional help">ⓘ</button></label>
+            <label class="form-label" for="destinationLabel">Destination (Optional) <app-help-icon [text]="'Optional destination name, city, or region for better context.'" ariaLabel="Destination optional help"></app-help-icon></label>
             <input id="destinationLabel" class="form-control" formControlName="destination" />
           </div>
 
           <div class="mb-2">
-            <label class="form-label" for="tripNotes">Trip Notes (Optional) <button type="button" class="info-icon" (click)="showHelp('Share optional notes like baggage details, travel preferences, or flexibility.')" aria-label="Trip notes help">ⓘ</button></label>
+            <label class="form-label" for="tripNotes">Trip Notes (Optional) <app-help-icon [text]="'Share optional notes like baggage details, travel preferences, or flexibility.'" ariaLabel="Trip notes help"></app-help-icon></label>
             <textarea id="tripNotes" rows="2" class="form-control" formControlName="notes"></textarea>
           </div>
 
           <div class="row g-2 mb-2">
             <div class="col-md-6">
-              <label class="form-label" for="startDate">Start Date <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Select the first date of your trip.')" aria-label="Start date help">ⓘ</button></label>
-              <input id="startDate" class="form-control date-input" type="date" formControlName="start_date" [attr.min]="today" [class.is-invalid]="isFieldInvalid('start_date')" (pointerdown)="openDatePicker($event)" (change)="closeNativePicker($event)" />
+              <label class="form-label" for="startDate">Start Date <span class="text-danger">*</span><app-help-icon [text]="'Select the first date of your trip.'" ariaLabel="Start date help"></app-help-icon></label>
+              <input id="startDate" class="form-control date-input" type="date" formControlName="start_date" [attr.min]="today" [class.is-invalid]="isFieldInvalid('start_date')" (change)="closeNativePicker($event)" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('start_date')">Start date is required.</div>
             </div>
             <div class="col-md-6">
-              <label class="form-label" for="endDate">End Date <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Select the final date of your trip.')" aria-label="End date help">ⓘ</button></label>
-              <input id="endDate" class="form-control date-input" type="date" formControlName="end_date" [attr.min]="today" [class.is-invalid]="isFieldInvalid('end_date')" (pointerdown)="openDatePicker($event)" (change)="closeNativePicker($event)" />
+              <label class="form-label" for="endDate">End Date <span class="text-danger">*</span><app-help-icon [text]="'Select the final date of your trip.'" ariaLabel="End date help"></app-help-icon></label>
+              <input id="endDate" class="form-control date-input" type="date" formControlName="end_date" [attr.min]="today" [class.is-invalid]="isFieldInvalid('end_date')" (change)="closeNativePicker($event)" />
               <div class="invalid-feedback" *ngIf="isFieldInvalid('end_date')">End date is required.</div>
             </div>
           </div>
@@ -80,31 +80,31 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
 
               <div class="row g-2">
                 <div class="col-md-6">
-                  <label class="form-label">Leg {{ i + 1 }} Origin Airport Code <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Enter the starting airport code, for example JFK or HYD.')" aria-label="Origin airport help">ⓘ</button></label>
+                  <label class="form-label">Leg {{ i + 1 }} Origin Airport Code <span class="text-danger">*</span><app-help-icon [text]="'Enter the starting airport code, for example JFK or HYD.'" ariaLabel="Origin airport help"></app-help-icon></label>
                   <input class="form-control text-uppercase" formControlName="origin_airport_code" maxlength="4" list="airportSuggestions" (input)="onAirportInput($event); uppercaseLegControl(i, 'origin_airport_code')" [class.is-invalid]="isLegFieldInvalid(i, 'origin_airport_code')" />
                   <div class="invalid-feedback" *ngIf="isLegFieldInvalid(i, 'origin_airport_code')">Origin airport code is required.</div>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Leg {{ i + 1 }} Destination Airport Code <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Enter the destination airport code, for example DXB or SIN.')" aria-label="Destination airport help">ⓘ</button></label>
+                  <label class="form-label">Leg {{ i + 1 }} Destination Airport Code <span class="text-danger">*</span><app-help-icon [text]="'Enter the destination airport code, for example DXB or SIN.'" ariaLabel="Destination airport help"></app-help-icon></label>
                   <input class="form-control text-uppercase" formControlName="destination_airport_code" maxlength="4" list="airportSuggestions" (input)="onAirportInput($event); uppercaseLegControl(i, 'destination_airport_code')" [class.is-invalid]="isLegFieldInvalid(i, 'destination_airport_code')" />
                   <div class="invalid-feedback" *ngIf="isLegFieldInvalid(i, 'destination_airport_code')">Destination airport code is required.</div>
                 </div>
               </div>
               <div class="row g-2 mt-1">
                 <div class="col-md-12">
-                  <label class="form-label">Flight Number <span class="text-danger">*</span><button type="button" class="info-icon" (click)="showHelp('Enter the flight number exactly as on your ticket, for example EK524.')" aria-label="Flight number help">ⓘ</button></label>
+                  <label class="form-label">Flight Number <span class="text-danger">*</span><app-help-icon [text]="'Enter the flight number exactly as on your ticket, for example EK524.'" ariaLabel="Flight number help"></app-help-icon></label>
                   <input class="form-control text-uppercase" formControlName="flight_number" [class.is-invalid]="isLegFieldInvalid(i, 'flight_number')" />
                   <div class="invalid-feedback" *ngIf="isLegFieldInvalid(i, 'flight_number')">Flight number is required.</div>
                 </div>
               </div>
               <div class="row g-2 mt-1">
                 <div class="col-md-6">
-                  <label class="form-label">Departure Date & Time (Optional) <button type="button" class="info-icon" (click)="showHelp('Optional local departure timestamp for this leg.')" aria-label="Departure datetime help">ⓘ</button></label>
-                  <input class="form-control date-input" type="datetime-local" formControlName="departure_at" (pointerdown)="openDatePicker($event)" (change)="closeNativePicker($event)" />
+                  <label class="form-label">Departure Date & Time (Optional) <app-help-icon [text]="'Optional local departure timestamp for this leg.'" ariaLabel="Departure datetime help"></app-help-icon></label>
+                  <input class="form-control date-input" type="datetime-local" formControlName="departure_at" (change)="closeNativePicker($event)" />
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Arrival Date & Time (Optional) <button type="button" class="info-icon" (click)="showHelp('Optional local arrival timestamp for this leg.')" aria-label="Arrival datetime help">ⓘ</button></label>
-                  <input class="form-control date-input" type="datetime-local" formControlName="arrival_at" (pointerdown)="openDatePicker($event)" (change)="closeNativePicker($event)" />
+                  <label class="form-label">Arrival Date & Time (Optional) <app-help-icon [text]="'Optional local arrival timestamp for this leg.'" ariaLabel="Arrival datetime help"></app-help-icon></label>
+                  <input class="form-control date-input" type="datetime-local" formControlName="arrival_at" (change)="closeNativePicker($event)" />
                 </div>
               </div>
             </div>
@@ -114,7 +114,7 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
 
           <div class="card border-0 bg-light mt-3">
             <div class="card-body">
-              <h3 class="h6 mb-3">Contact Details (Optional) <button type="button" class="info-icon" (click)="showHelp('These details are shared only after your contact details request is accepted.')" aria-label="Contact details help">ⓘ</button></h3>
+              <h3 class="h6 mb-3">Contact Details (Optional) <app-help-icon [text]="'These details are shared only after your contact details request is accepted.'" ariaLabel="Contact details help"></app-help-icon></h3>
               <p class="small text-muted mb-3">These details are attached to this trip and can be shared only through approved contact details requests.</p>
 
               <div class="row g-2">
@@ -155,21 +155,6 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
   `,
   styles: [
     `
-      .info-icon {
-        display: inline-block;
-        margin-left: 0.35rem;
-        font-size: 0.85rem;
-        color: #0d6efd;
-        cursor: pointer;
-        border: 1px solid #0d6efd;
-        border-radius: 999px;
-        background: #fff;
-        width: 1.5rem;
-        height: 1.5rem;
-        line-height: 1;
-        text-align: center;
-        padding: 0;
-      }
     `
   ]
 })
@@ -180,7 +165,6 @@ export class CreateItineraryComponent {
   loading = false;
   errorMessage = '';
   infoMessage = '';
-  helpMessage = '';
   airportSuggestions: AirportEntry[] = [];
   warningMessage = '';
   today = new Date().toISOString().slice(0, 10);
@@ -331,18 +315,6 @@ export class CreateItineraryComponent {
       control.setValue(value, { emitEvent: false });
     }
   }
-
-  openDatePicker(event: Event): void {
-    const input = event.target as HTMLInputElement | null;
-    if (!input) return;
-
-    const isCoarsePointer = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-    if (isCoarsePointer && typeof (input as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
-      event.preventDefault();
-      (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
-    }
-  }
-
   closeNativePicker(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     window.setTimeout(() => input?.blur(), 0);
@@ -380,7 +352,6 @@ export class CreateItineraryComponent {
 
     this.errorMessage = '';
     this.infoMessage = '';
-    this.helpMessage = '';
     this.warningMessage = '';
 
     if (this.form.invalid) {
@@ -514,7 +485,4 @@ export class CreateItineraryComponent {
     return this.airportAutocompleteService.optionLabel(airport);
   }
 
-  showHelp(message: string): void {
-    this.helpMessage = message;
-  }
 }

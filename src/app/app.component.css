@@ -29,3 +29,13 @@ input {
 .modal-backdrop {
   z-index: 1050;
 }
+
+
+.menu-count-badge {
+  top: 0.35rem !important;
+  right: 0.2rem;
+  left: auto !important;
+  transform: none !important;
+  font-size: 0.65rem;
+  min-width: 1.2rem;
+}

@@ -18,7 +18,8 @@ import { ItineraryService } from '../../services/itinerary.service';
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
         <button class="btn btn-outline-primary btn-sm mb-3" (click)="refresh()">Refresh</button>
 
-        <div class="table-responsive" *ngIf="trips.length; else empty">
+        <div class="table-scroll-hint d-md-none">↔ Scroll sideways to see more columns</div>
+        <div class="table-responsive has-scroll-hint" *ngIf="trips.length; else empty">
           <table class="table table-striped align-middle">
             <thead>
               <tr>

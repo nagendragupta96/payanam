@@ -55,3 +55,25 @@ input[type='date'],
 input[type='datetime-local'] {
   text-align: left;
 }
+
+
+.table-scroll-hint {
+  font-size: 0.75rem;
+  color: #5f6b7a;
+  margin-bottom: 0.25rem;
+}
+
+.table-responsive.has-scroll-hint {
+  position: relative;
+}
+
+.table-responsive.has-scroll-hint::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 16px;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(to left, rgba(248, 249, 252, 0.95), rgba(248, 249, 252, 0));
+}

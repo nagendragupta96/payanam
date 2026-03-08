@@ -64,6 +64,6 @@ export class AirportAutocompleteService {
   }
 
   optionLabel(airport: AirportEntry): string {
-    return `${airport.code} — ${airport.city}, ${airport.country} (${airport.name})`;
+    return `${airport.code} - ${airport.name} - ${airport.city} - ${airport.country}`;
   }
 }

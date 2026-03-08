@@ -9,43 +9,43 @@ import { RequestService, RequestType } from '../../services/request.service';
 import { ItineraryContactService } from '../../services/itinerary-contact.service';
 import { ChatService } from '../../services/chat.service';
 import { AirportAutocompleteService, AirportEntry } from '../../services/airport-autocomplete.service';
+import { HelpIconComponent } from '../../shared/help-icon.component';
 
 @Component({
   selector: 'app-search',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, HelpIconComponent],
   template: `
     <h2 class="mb-3">Search Trips</h2>
 
     <div #errorAlert tabindex="-1" class="alert alert-danger" *ngIf="errorMessage" role="alert">{{ errorMessage }}</div>
     <div class="alert alert-info" *ngIf="infoMessage">{{ infoMessage }}</div>
-    <div class="alert alert-info" *ngIf="helpMessage">{{ helpMessage }}</div>
 
     <form [formGroup]="form" (ngSubmit)="search()" class="card card-body mb-4">
       <div class="row g-3">
         <div class="col-md-6 col-lg-3">
-          <label class="form-label">Origin Airport Code * <button type="button" class="info-icon" (click)="showHelp('Enter departure airport code, for example JFK.')" aria-label="Origin help">ⓘ</button></label>
+          <label class="form-label">Origin Airport Code * <app-help-icon [text]=\"'Enter departure airport code, for example JFK.'\" ariaLabel=\"Origin help\"></app-help-icon></label>
           <input class="form-control text-uppercase" formControlName="originAirportCode" maxlength="4" list="airportSuggestions" (input)="onAirportInput('originAirportCode', $event); uppercaseSearchControl('originAirportCode')" />
         </div>
         <div class="col-md-6 col-lg-3">
-          <label class="form-label">Destination Airport Code * <button type="button" class="info-icon" (click)="showHelp('Enter arrival airport code, for example HYD.')" aria-label="Destination help">ⓘ</button></label>
+          <label class="form-label">Destination Airport Code * <app-help-icon [text]=\"'Enter arrival airport code, for example HYD.'\" ariaLabel=\"Destination help\"></app-help-icon></label>
           <input class="form-control text-uppercase" formControlName="destinationAirportCode" maxlength="4" list="airportSuggestions" (input)="onAirportInput('destinationAirportCode', $event); uppercaseSearchControl('destinationAirportCode')" />
         </div>
         <div class="col-md-6 col-lg-3">
-          <label class="form-label">Start Date * <button type="button" class="info-icon" (click)="showHelp('Trips starting on or after this date will be returned.')" aria-label="Start date help">ⓘ</button></label>
+          <label class="form-label">Start Date * <app-help-icon [text]=\"'Trips starting on or after this date will be returned.'\" ariaLabel=\"Start date help\"></app-help-icon></label>
           <input type="date" class="form-control date-input" formControlName="searchStartDate" (pointerdown)="openDatePicker($event)" (change)="closeNativePicker($event)" />
         </div>
         <div class="col-md-6 col-lg-3">
-          <label class="form-label">End Date * <button type="button" class="info-icon" (click)="showHelp('Trips ending on or before this date will be returned.')" aria-label="End date help">ⓘ</button></label>
+          <label class="form-label">End Date * <app-help-icon [text]=\"'Trips ending on or before this date will be returned.'\" ariaLabel=\"End date help\"></app-help-icon></label>
           <input type="date" class="form-control date-input" formControlName="searchEndDate" (pointerdown)="openDatePicker($event)" (change)="closeNativePicker($event)" />
         </div>
 
         <div class="col-md-6">
-          <label class="form-label">Stop1 Airport Code (optional) <button type="button" class="info-icon" (click)="showHelp('Optional first layover airport code.')" aria-label="Stop1 help">ⓘ</button></label>
+          <label class="form-label">Stop1 Airport Code (optional) <app-help-icon [text]=\"'Optional first layover airport code.'\" ariaLabel=\"Stop1 help\"></app-help-icon></label>
           <input class="form-control text-uppercase" formControlName="stop1AirportCode" maxlength="4" list="airportSuggestions" (input)="onAirportInput('stop1AirportCode', $event); uppercaseSearchControl('stop1AirportCode')" />
         </div>
         <div class="col-md-6">
-          <label class="form-label">Stop2 Airport Code (optional) <button type="button" class="info-icon" (click)="showHelp('Optional second layover airport code.')" aria-label="Stop2 help">ⓘ</button></label>
+          <label class="form-label">Stop2 Airport Code (optional) <app-help-icon [text]=\"'Optional second layover airport code.'\" ariaLabel=\"Stop2 help\"></app-help-icon></label>
           <input class="form-control text-uppercase" formControlName="stop2AirportCode" maxlength="4" list="airportSuggestions" (input)="onAirportInput('stop2AirportCode', $event); uppercaseSearchControl('stop2AirportCode')" />
         </div>
       </div>
@@ -161,10 +161,10 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
               <h6>Contact Details</h6>
               <div *ngIf="isSelfTrip; else requesterContactBlock">
                 <div class="row g-2">
-                  <div class="col-md-6"><label class="form-label">Contact Name <button type="button" class="info-icon" (click)="showHelp('Name shared after contact details request is approved.')" aria-label="Contact name help">ⓘ</button></label><input class="form-control" [(ngModel)]="contactForm.contact_name" [ngModelOptions]="{standalone: true}" /></div>
-                  <div class="col-md-6"><label class="form-label">Contact Phone <button type="button" class="info-icon" (click)="showHelp('Include country code for reliable contact.')" aria-label="Contact phone help">ⓘ</button></label><input class="form-control" [(ngModel)]="contactForm.contact_phone" [ngModelOptions]="{standalone: true}" /></div>
-                  <div class="col-md-6"><label class="form-label">Contact Email <button type="button" class="info-icon" (click)="showHelp('Email shared with approved contact requests only.')" aria-label="Contact email help">ⓘ</button></label><input class="form-control" [(ngModel)]="contactForm.contact_email" [ngModelOptions]="{standalone: true}" /></div>
-                  <div class="col-md-12"><label class="form-label">Notes (Optional) <button type="button" class="info-icon" (click)="showHelp('Any optional directions for contacting you.')" aria-label="Contact notes help">ⓘ</button></label><textarea class="form-control" [(ngModel)]="contactForm.notes" [ngModelOptions]="{standalone: true}" rows="2"></textarea></div>
+                  <div class="col-md-6"><label class="form-label">Contact Name <app-help-icon [text]=\"'Name shared after contact details request is approved.'\" ariaLabel=\"Contact name help\"></app-help-icon></label><input class="form-control" [(ngModel)]="contactForm.contact_name" [ngModelOptions]="{standalone: true}" /></div>
+                  <div class="col-md-6"><label class="form-label">Contact Phone <app-help-icon [text]=\"'Include country code for reliable contact.'\" ariaLabel=\"Contact phone help\"></app-help-icon></label><input class="form-control" [(ngModel)]="contactForm.contact_phone" [ngModelOptions]="{standalone: true}" /></div>
+                  <div class="col-md-6"><label class="form-label">Contact Email <app-help-icon [text]=\"'Email shared with approved contact requests only.'\" ariaLabel=\"Contact email help\"></app-help-icon></label><input class="form-control" [(ngModel)]="contactForm.contact_email" [ngModelOptions]="{standalone: true}" /></div>
+                  <div class="col-md-12"><label class="form-label">Notes (Optional) <app-help-icon [text]=\"'Any optional directions for contacting you.'\" ariaLabel=\"Contact notes help\"></app-help-icon></label><textarea class="form-control" [(ngModel)]="contactForm.notes" [ngModelOptions]="{standalone: true}" rows="2"></textarea></div>
                 </div>
                 <button class="btn btn-sm btn-success mt-2" [disabled]="savingContact" (click)="saveContactDetails()">
                   <span *ngIf="savingContact" class="spinner-border spinner-border-sm me-2"></span>
@@ -201,15 +201,6 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
     `
       .trip-modal { z-index: 1060; }
       .trip-modal-backdrop { z-index: 1050; }
-      .info-icon { margin-left: .35rem; font-size: .85rem; color: #0d6efd; cursor: pointer;
-        border: 1px solid #0d6efd;
-        border-radius: 999px;
-        background: #fff;
-        width: 1.5rem;
-        height: 1.5rem;
-        line-height: 1;
-        text-align: center;
-        padding: 0; }
       .route-cell, .date-cell { white-space: nowrap; }
     `
   ]
@@ -218,7 +209,6 @@ export class SearchComponent {
   @ViewChild('errorAlert') errorAlert?: ElementRef<HTMLElement>;
   errorMessage = '';
   infoMessage = 'Use airport codes and date range to search.';
-  helpMessage = '';
   airportSuggestions: AirportEntry[] = [];
   results: Itinerary[] = [];
   loadingSearch = false;
@@ -311,7 +301,6 @@ export class SearchComponent {
     this.hasSearched = true;
     this.errorMessage = '';
     this.infoMessage = '';
-    this.helpMessage = '';
 
     try {
       const value = this.form.getRawValue();
@@ -570,7 +559,4 @@ export class SearchComponent {
     return this.airportAutocompleteService.optionLabel(airport);
   }
 
-  showHelp(message: string): void {
-    this.helpMessage = message;
-  }
 }

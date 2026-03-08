@@ -3,11 +3,12 @@ import { Component } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { supabase } from '../../services/supabase-client';
 import { AuthService } from '../../services/auth.service';
+import { HelpIconComponent } from '../../shared/help-icon.component';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, HelpIconComponent],
   template: `
     <div class="card shadow-sm mb-4">
       <div class="card-body">
@@ -15,19 +16,18 @@ import { AuthService } from '../../services/auth.service';
 
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
-            <div class="alert alert-info" *ngIf="helpMessage">{{ helpMessage }}</div>
 
         <form [formGroup]="form" (ngSubmit)="save()" novalidate>
           <div class="mb-3">
             <label class="form-label" for="displayName">Display Name (Optional)
-              <button type="button" class="info-icon" (click)="showHelp('This is how other users will see your name.')" aria-label="Display name help">ⓘ</button>
+              <app-help-icon [text]="'This is how other users will see your name.'" ariaLabel="Display name help"></app-help-icon>
             </label>
             <input id="displayName" class="form-control" formControlName="displayName" />
           </div>
 
           <div class="mb-3">
             <label class="form-label" for="avatarUrl">Avatar URL (Optional)
-              <button type="button" class="info-icon" (click)="showHelp('Paste an image URL if you want a profile picture.')" aria-label="Avatar URL help">ⓘ</button>
+              <app-help-icon [text]="'Paste an image URL if you want a profile picture.'" ariaLabel="Avatar URL help"></app-help-icon>
             </label>
             <input id="avatarUrl" class="form-control" formControlName="avatarUrl" />
           </div>
@@ -56,28 +56,12 @@ import { AuthService } from '../../services/auth.service';
   `,
   styles: [
     `
-      .info-icon {
-        display: inline-block;
-        margin-left: 0.35rem;
-        font-size: 0.85rem;
-        color: #0d6efd;
-        cursor: pointer;
-        border: 1px solid #0d6efd;
-        border-radius: 999px;
-        background: #fff;
-        width: 1.5rem;
-        height: 1.5rem;
-        line-height: 1;
-        text-align: center;
-        padding: 0;
-      }
     `
   ]
 })
 export class ProfileComponent {
   errorMessage = '';
   infoMessage = '';
-  helpMessage = '';
   savingProfile = false;
   deletingAccount = false;
 
@@ -118,7 +102,6 @@ export class ProfileComponent {
     this.savingProfile = true;
     this.errorMessage = '';
     this.infoMessage = '';
-    this.helpMessage = '';
 
     try {
       const { error } = await supabase.from('profiles').upsert({
@@ -147,7 +130,6 @@ export class ProfileComponent {
     this.deletingAccount = true;
     this.errorMessage = '';
     this.infoMessage = '';
-    this.helpMessage = '';
 
     try {
       const error = await this.authService.deleteCurrentAccount();
@@ -162,7 +144,4 @@ export class ProfileComponent {
     }
   }
 
-  showHelp(message: string): void {
-    this.helpMessage = message;
-  }
 }
