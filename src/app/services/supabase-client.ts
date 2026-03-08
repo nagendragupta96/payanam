@@ -1,29 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
 
-const inMemoryLockTails = new Map<string, Promise<void>>();
-
-async function withInMemoryLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
-  const previous = inMemoryLockTails.get(name) ?? Promise.resolve();
-
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const tail = previous.then(() => gate);
-  inMemoryLockTails.set(name, tail);
-
-  await previous;
-  try {
-    return await fn();
-  } finally {
-    release();
-    if (inMemoryLockTails.get(name) === tail) {
-      inMemoryLockTails.delete(name);
-    }
-  }
-}
-
 async function safeAuthLock<T>(name: string, _acquireTimeout: number, fn: () => Promise<T>): Promise<T> {
   if (typeof window === 'undefined') {
     return await fn();
@@ -31,14 +8,21 @@ async function safeAuthLock<T>(name: string, _acquireTimeout: number, fn: () => 
 
   const lockManager = window.navigator?.locks;
   if (!lockManager?.request) {
-    return await withInMemoryLock(name, fn);
+    return await fn();
   }
 
   try {
-    return await lockManager.request(name, { mode: 'exclusive' }, async () => await fn());
+    // Non-blocking lock attempt so a busy/stale browser lock never breaks auth flows.
+    return await lockManager.request(name, { mode: 'exclusive', ifAvailable: true }, async (lock) => {
+      if (!lock) {
+        return await fn();
+      }
+
+      return await fn();
+    });
   } catch (error) {
-    console.warn('[supabase-lock] navigator lock failed; falling back to in-memory lock', { name, error });
-    return await withInMemoryLock(name, fn);
+    console.warn('[supabase-lock] navigator lock failed; continuing without lock', { name, error });
+    return await fn();
   }
 }
 
