@@ -15,10 +15,18 @@
 input[type='date'],
 input[type='datetime-local'] {
   min-height: 2.75rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   padding-right: 2.5rem;
   text-align: left;
   appearance: auto;
   -webkit-appearance: auto;
+}
+
+input[type='date']::-webkit-date-and-time-value,
+input[type='datetime-local']::-webkit-date-and-time-value {
+  text-align: left;
 }
 
 input[type='date']::-webkit-calendar-picker-indicator,
@@ -31,6 +39,7 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
 
 .date-input {
   width: 100%;
+  max-width: 100%;
   touch-action: manipulation;
 }
 

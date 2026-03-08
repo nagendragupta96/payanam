@@ -7,7 +7,7 @@ import { Component, ElementRef, HostListener, Input } from '@angular/core';
   imports: [CommonModule],
   template: `
     <span class="help-icon-wrap">
-      <button type="button" class="info-icon" (click)="toggle($event)" [attr.aria-label]="ariaLabel || 'Field help'">ⓘ</button>
+      <button type="button" class="info-icon" tabindex="-1" (click)="toggle($event)" [attr.aria-label]="ariaLabel || 'Field help'">ⓘ</button>
       <div class="help-popover" *ngIf="open" role="tooltip">
         <button type="button" class="btn-close btn-close-sm help-close" aria-label="Close" (click)="open = false"></button>
         <div class="help-text">{{ text }}</div>
