@@ -39,3 +39,18 @@ input {
   font-size: 0.65rem;
   min-width: 1.2rem;
 }
+
+
+.nav-profile-link {
+  min-height: 2.25rem;
+}
+
+.nav-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #d0d7e2;
+  background: #eef2f7;
+  flex: 0 0 auto;
+}

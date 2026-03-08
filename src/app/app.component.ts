@@ -4,6 +4,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from './services/auth.service';
 import { MessageNotificationService } from './services/message-notification.service';
 import { RequestNotificationService } from './services/request-notification.service';
+import { supabase } from './services/supabase-client';
 
 @Component({
   selector: 'app-root',
@@ -17,6 +18,8 @@ export class AppComponent implements OnDestroy {
   private readonly subscriptions = new Subscription();
   currentUrl = '/';
   authErrorMessage = '';
+  readonly defaultAvatarUrl = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"%3E%3Crect width="80" height="80" fill="%23e9eef5"/%3E%3Ccircle cx="40" cy="30" r="14" fill="%2391a4b8"/%3E%3Cpath d="M16 68c2-13 12-21 24-21s22 8 24 21" fill="%2391a4b8"/%3E%3C/svg%3E';
+  profileAvatarUrl = this.defaultAvatarUrl;
   private foregroundCheckInFlight = false;
   private hiddenAt = 0;
   private recoveryTimerId: number | null = null;
@@ -50,6 +53,10 @@ export class AppComponent implements OnDestroy {
       this.authErrorMessage = message;
     }));
 
+    this.subscriptions.add(this.authService.session$.subscribe(() => {
+      void this.loadProfileAvatar();
+    }));
+
     window.addEventListener('unhandledrejection', this.onUnhandledRejection);
     window.addEventListener('focus', this.onWindowFocus);
     window.addEventListener('online', this.onWindowOnline);
@@ -57,6 +64,7 @@ export class AppComponent implements OnDestroy {
     document.addEventListener('visibilitychange', this.onVisibilityChange);
 
     void this.authService.ensureInitialized();
+    void this.loadProfileAvatar();
   }
 
   get isLoggedIn(): boolean {
@@ -148,6 +156,36 @@ export class AppComponent implements OnDestroy {
     document.body.classList.remove('modal-open');
     document.body.style.removeProperty('overflow');
     document.body.style.removeProperty('padding-right');
+  }
+
+
+
+  onAvatarError(): void {
+    this.profileAvatarUrl = this.defaultAvatarUrl;
+  }
+
+  private async loadProfileAvatar(): Promise<void> {
+    const user = this.authService.currentSession?.user;
+    if (!user) {
+      this.profileAvatarUrl = this.defaultAvatarUrl;
+      return;
+    }
+
+    const metadataAvatar = (user.user_metadata?.['avatar_url'] || user.user_metadata?.['picture'] || '').toString().trim();
+    this.profileAvatarUrl = metadataAvatar || this.defaultAvatarUrl;
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const dbAvatar = (data?.avatar_url || '').toString().trim();
+    if (dbAvatar) {
+      this.profileAvatarUrl = dbAvatar;
+    } else if (!metadataAvatar) {
+      this.profileAvatarUrl = this.defaultAvatarUrl;
+    }
   }
 
   ngOnDestroy(): void {

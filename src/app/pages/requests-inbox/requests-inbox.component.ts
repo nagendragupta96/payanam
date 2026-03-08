@@ -24,6 +24,8 @@ import { RequestRecord, RequestService } from '../../services/request.service';
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
 
         <h3 class="h6">Incoming</h3>
+        <div class="table-scroll-hint d-md-none">↔ Scroll sideways to view full request details</div>
+        <div class="overflow-auto pb-1">
         <ul class="list-group mb-3">
           <li class="list-group-item" *ngFor="let req of incoming">
             <div class="d-flex justify-content-between gap-2 flex-wrap align-items-start">
@@ -58,26 +60,30 @@ import { RequestRecord, RequestService } from '../../services/request.service';
             </div>
           </li>
         </ul>
+        </div>
 
         <h3 class="h6">Outgoing</h3>
-        <ul class="list-group mb-0">
-          <li class="list-group-item" *ngFor="let req of outgoing">
-            <div class="d-flex justify-content-between gap-2 flex-wrap align-items-start">
-              <div>
-                <div class="fw-semibold">Request sent to {{ userLabel(req.owner_id) }}</div>
-                <div class="small text-muted">{{ requestTypeLabel(req.request_type) }} • {{ req.status }}</div>
-                <div class="small">
-                  {{ req.itineraries?.origin_airport_code || '-' }} → {{ req.itineraries?.destination_airport_code || '-' }}
-                  (<span class="date-cell">{{ req.itineraries?.start_date || '-' }} → {{ req.itineraries?.end_date || '-' }}</span>)
+        <div class="table-scroll-hint d-md-none">↔ Scroll sideways to view full request details</div>
+        <div class="overflow-auto pb-1">
+          <ul class="list-group mb-0">
+            <li class="list-group-item" *ngFor="let req of outgoing">
+              <div class="d-flex justify-content-between gap-2 flex-wrap align-items-start">
+                <div>
+                  <div class="fw-semibold">Request sent to {{ userLabel(req.owner_id) }}</div>
+                  <div class="small text-muted">{{ requestTypeLabel(req.request_type) }} • {{ req.status }}</div>
+                  <div class="small">
+                    {{ req.itineraries?.origin_airport_code || '-' }} → {{ req.itineraries?.destination_airport_code || '-' }}
+                    (<span class="date-cell">{{ req.itineraries?.start_date || '-' }} → {{ req.itineraries?.end_date || '-' }}</span>)
+                  </div>
+                </div>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-sm btn-outline-primary" (click)="openRequest(req.id)">Details</button>
+                  <button class="btn btn-sm btn-outline-primary" *ngIf="req.status === 'ACCEPTED' && req.request_type !== 'CONTACT_DETAILS'" (click)="openMessages(req.id)">Messages</button>
                 </div>
               </div>
-              <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-primary" (click)="openRequest(req.id)">Details</button>
-                <button class="btn btn-sm btn-outline-primary" *ngIf="req.status === 'ACCEPTED' && req.request_type !== 'CONTACT_DETAILS'" (click)="openMessages(req.id)">Messages</button>
-              </div>
-            </div>
-          </li>
-        </ul>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   `

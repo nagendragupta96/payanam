@@ -64,7 +64,8 @@ import { HelpIconComponent } from '../../shared/help-icon.component';
 
     <div class="card shadow-sm" *ngIf="results.length; else noResults">
       <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-scroll-hint d-md-none px-3 pt-2">↔ Scroll sideways to see more columns</div>
+        <div class="table-responsive has-scroll-hint">
           <table class="table table-hover table-striped align-middle mb-0">
             <thead class="table-light">
               <tr>
