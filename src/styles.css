@@ -92,3 +92,18 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   pointer-events: none;
   background: linear-gradient(to left, rgba(248, 249, 252, 0.95), rgba(248, 249, 252, 0));
 }
+
+
+.form-control.date-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding-right: 2.5rem;
+  background-origin: content-box;
+}
+
+.card .card-body input[type='date'],
+.card .card-body input[type='datetime-local'] {
+  min-width: 0;
+}
