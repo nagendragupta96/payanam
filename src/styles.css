@@ -14,7 +14,11 @@
 
 input[type='date'],
 input[type='datetime-local'] {
-  min-height: 2.4rem;
+  min-height: 2.75rem;
+  padding-right: 2.5rem;
+  text-align: left;
+  appearance: auto;
+  -webkit-appearance: auto;
 }
 
 input[type='date']::-webkit-calendar-picker-indicator,
@@ -22,13 +26,12 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   opacity: 1;
   display: block;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .date-input {
-  padding-right: 2.2rem;
-  background-repeat: no-repeat;
-  background-position: right 0.65rem center;
-  background-size: 0.95rem;
+  width: 100%;
+  touch-action: manipulation;
 }
 
 
@@ -51,10 +54,6 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   white-space: nowrap;
 }
 
-input[type='date'],
-input[type='datetime-local'] {
-  text-align: left;
-}
 
 
 .table-scroll-hint {

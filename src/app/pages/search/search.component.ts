@@ -33,11 +33,11 @@ import { HelpIconComponent } from '../../shared/help-icon.component';
         </div>
         <div class="col-md-6 col-lg-3">
           <label class="form-label">Start Date * <app-help-icon [text]=\"'Trips starting on or after this date will be returned.'\" ariaLabel=\"Start date help\"></app-help-icon></label>
-          <input type="date" class="form-control date-input" formControlName="searchStartDate" (pointerdown)="openDatePicker($event)" (change)="closeNativePicker($event)" />
+          <input type="date" class="form-control date-input" formControlName="searchStartDate" (change)="closeNativePicker($event)" />
         </div>
         <div class="col-md-6 col-lg-3">
           <label class="form-label">End Date * <app-help-icon [text]=\"'Trips ending on or before this date will be returned.'\" ariaLabel=\"End date help\"></app-help-icon></label>
-          <input type="date" class="form-control date-input" formControlName="searchEndDate" (pointerdown)="openDatePicker($event)" (change)="closeNativePicker($event)" />
+          <input type="date" class="form-control date-input" formControlName="searchEndDate" (change)="closeNativePicker($event)" />
         </div>
 
         <div class="col-md-6">
@@ -365,17 +365,6 @@ export class SearchComponent {
     }
   }
 
-
-  openDatePicker(event: Event): void {
-    const input = event.target as HTMLInputElement | null;
-    if (!input) return;
-
-    const isCoarsePointer = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-    if (isCoarsePointer && typeof (input as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
-      event.preventDefault();
-      (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
-    }
-  }
 
   closeNativePicker(event: Event): void {
     const input = event.target as HTMLInputElement | null;
