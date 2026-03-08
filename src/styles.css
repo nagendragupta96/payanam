@@ -30,3 +30,28 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   background-position: right 0.65rem center;
   background-size: 0.95rem;
 }
+
+
+.table-responsive {
+  overflow-x: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+.table-responsive::-webkit-scrollbar {
+  height: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background-color: rgba(13, 110, 253, 0.45);
+  border-radius: 999px;
+}
+
+.route-cell,
+.date-cell {
+  white-space: nowrap;
+}
+
+input[type='date'],
+input[type='datetime-local'] {
+  text-align: left;
+}

@@ -22,7 +22,11 @@
           @if (isLoggedIn) {
             <a routerLink="/create-itinerary" routerLinkActive="active" class="nav-link px-3" (click)="closeNav()">Post Trip</a>
             <a routerLink="/my-trips" routerLinkActive="active" class="nav-link px-3" (click)="closeNav()">My Trips</a>
-            <a routerLink="/requests" routerLinkActive="active" class="nav-link px-3" (click)="closeNav()">Requests</a>
+            <a routerLink="/requests" routerLinkActive="active" class="nav-link px-3 position-relative" (click)="closeNav()">Requests
+              @if (requestNotificationService.unreadRequestCount > 0) {
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ requestNotificationService.unreadRequestCount }}</span>
+              }
+            </a>
             <a routerLink="/messages" class="nav-link px-3 position-relative" [class.active]="isSectionActive('/messages') || isSectionActive('/chat')" (click)="closeNav()">
               Messages
               @if (messageNotificationService.unreadCount > 0) {

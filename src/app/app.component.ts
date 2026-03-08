@@ -3,6 +3,7 @@ import { NavigationEnd, NavigationStart, Router, RouterLink, RouterLinkActive, R
 import { Subscription } from 'rxjs';
 import { AuthService } from './services/auth.service';
 import { MessageNotificationService } from './services/message-notification.service';
+import { RequestNotificationService } from './services/request-notification.service';
 
 @Component({
   selector: 'app-root',
@@ -23,14 +24,19 @@ export class AppComponent implements OnDestroy {
   constructor(
     public authService: AuthService,
     public messageNotificationService: MessageNotificationService,
+    public requestNotificationService: RequestNotificationService,
     private router: Router
   ) {
     this.currentUrl = this.router.url;
 
     this.subscriptions.add(this.router.events.subscribe((event) => {
       if (event instanceof NavigationStart) {
-        if (event.url.startsWith('/requests') || event.url.startsWith('/messages') || event.url.startsWith('/chat')) {
+        if (event.url.startsWith('/messages') || event.url.startsWith('/chat')) {
           this.messageNotificationService.clearUnread();
+        }
+
+        if (event.url.startsWith('/requests')) {
+          this.requestNotificationService.clearUnreadRequests();
         }
       }
 

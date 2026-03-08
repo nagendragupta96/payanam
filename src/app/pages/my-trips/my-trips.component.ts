@@ -35,7 +35,7 @@ import { ItineraryService } from '../../services/itinerary.service';
                   <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/edit-itinerary', trip.id]">Edit Itinerary</a>
                   <button class="btn btn-sm btn-outline-danger" (click)="deleteTrip(trip.id!)">Delete</button>
                 </div></td>
-                <td>{{ trip.origin_airport_code }} → {{ trip.destination_airport_code }}</td>
+                <td class="route-cell">{{ trip.origin_airport_code }} → {{ trip.destination_airport_code }}</td>
                 <td>{{ trip.destination || '-' }}</td>
                 <td class="date-cell">{{ trip.start_date }} → {{ trip.end_date || 'One way' }}</td>
               </tr>

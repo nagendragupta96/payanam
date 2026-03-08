@@ -8,6 +8,7 @@ import { ItineraryService } from '../../services/itinerary.service';
 import { RequestService, RequestType } from '../../services/request.service';
 import { ItineraryContactService } from '../../services/itinerary-contact.service';
 import { ChatService } from '../../services/chat.service';
+import { AirportAutocompleteService, AirportEntry } from '../../services/airport-autocomplete.service';
 
 @Component({
   selector: 'app-search',
@@ -24,28 +25,28 @@ import { ChatService } from '../../services/chat.service';
       <div class="row g-3">
         <div class="col-md-6 col-lg-3">
           <label class="form-label">Origin Airport Code * <button type="button" class="info-icon" (click)="showHelp('Enter departure airport code, for example JFK.')" aria-label="Origin help">ⓘ</button></label>
-          <input class="form-control text-uppercase" formControlName="originAirportCode" maxlength="4" (input)="uppercaseSearchControl('originAirportCode')" />
+          <input class="form-control text-uppercase" formControlName="originAirportCode" maxlength="4" list="airportSuggestions" (input)="onAirportInput('originAirportCode', $event); uppercaseSearchControl('originAirportCode')" />
         </div>
         <div class="col-md-6 col-lg-3">
           <label class="form-label">Destination Airport Code * <button type="button" class="info-icon" (click)="showHelp('Enter arrival airport code, for example HYD.')" aria-label="Destination help">ⓘ</button></label>
-          <input class="form-control text-uppercase" formControlName="destinationAirportCode" maxlength="4" (input)="uppercaseSearchControl('destinationAirportCode')" />
+          <input class="form-control text-uppercase" formControlName="destinationAirportCode" maxlength="4" list="airportSuggestions" (input)="onAirportInput('destinationAirportCode', $event); uppercaseSearchControl('destinationAirportCode')" />
         </div>
         <div class="col-md-6 col-lg-3">
           <label class="form-label">Start Date * <button type="button" class="info-icon" (click)="showHelp('Trips starting on or after this date will be returned.')" aria-label="Start date help">ⓘ</button></label>
-          <input type="date" class="form-control date-input" formControlName="searchStartDate" (change)="closeNativePicker($event)" />
+          <input type="date" class="form-control date-input" formControlName="searchStartDate" (pointerdown)="openDatePicker($event)" (change)="closeNativePicker($event)" />
         </div>
         <div class="col-md-6 col-lg-3">
           <label class="form-label">End Date * <button type="button" class="info-icon" (click)="showHelp('Trips ending on or before this date will be returned.')" aria-label="End date help">ⓘ</button></label>
-          <input type="date" class="form-control date-input" formControlName="searchEndDate" (change)="closeNativePicker($event)" />
+          <input type="date" class="form-control date-input" formControlName="searchEndDate" (pointerdown)="openDatePicker($event)" (change)="closeNativePicker($event)" />
         </div>
 
         <div class="col-md-6">
           <label class="form-label">Stop1 Airport Code (optional) <button type="button" class="info-icon" (click)="showHelp('Optional first layover airport code.')" aria-label="Stop1 help">ⓘ</button></label>
-          <input class="form-control text-uppercase" formControlName="stop1AirportCode" maxlength="4" (input)="uppercaseSearchControl('stop1AirportCode')" />
+          <input class="form-control text-uppercase" formControlName="stop1AirportCode" maxlength="4" list="airportSuggestions" (input)="onAirportInput('stop1AirportCode', $event); uppercaseSearchControl('stop1AirportCode')" />
         </div>
         <div class="col-md-6">
           <label class="form-label">Stop2 Airport Code (optional) <button type="button" class="info-icon" (click)="showHelp('Optional second layover airport code.')" aria-label="Stop2 help">ⓘ</button></label>
-          <input class="form-control text-uppercase" formControlName="stop2AirportCode" maxlength="4" (input)="uppercaseSearchControl('stop2AirportCode')" />
+          <input class="form-control text-uppercase" formControlName="stop2AirportCode" maxlength="4" list="airportSuggestions" (input)="onAirportInput('stop2AirportCode', $event); uppercaseSearchControl('stop2AirportCode')" />
         </div>
       </div>
 
@@ -56,6 +57,10 @@ import { ChatService } from '../../services/chat.service';
         </button>
       </div>
     </form>
+
+    <datalist id="airportSuggestions">
+      <option *ngFor="let airport of airportSuggestions" [value]="airport.code">{{ airportOptionLabel(airport) }}</option>
+    </datalist>
 
     <div class="card shadow-sm" *ngIf="results.length; else noResults">
       <div class="card-body p-0">
@@ -82,8 +87,8 @@ import { ChatService } from '../../services/chat.service';
                     View
                   </button>
                 </td>
-                <td>{{ item.origin_airport_code }}</td>
-                <td>{{ item.destination_airport_code }}</td>
+                <td class="route-cell">{{ item.origin_airport_code }}</td>
+                <td class="route-cell">{{ item.destination_airport_code }}</td>
                 <td class="date-cell">{{ item.start_date }}</td>
                 <td class="date-cell">{{ item.end_date || 'One way' }}</td>
                 <td>{{ stopAirport(item, 0) }}</td>
@@ -205,6 +210,7 @@ import { ChatService } from '../../services/chat.service';
         line-height: 1;
         text-align: center;
         padding: 0; }
+      .route-cell, .date-cell { white-space: nowrap; }
     `
   ]
 })
@@ -213,6 +219,7 @@ export class SearchComponent {
   errorMessage = '';
   infoMessage = 'Use airport codes and date range to search.';
   helpMessage = '';
+  airportSuggestions: AirportEntry[] = [];
   results: Itinerary[] = [];
   loadingSearch = false;
   hasSearched = false;
@@ -245,6 +252,7 @@ export class SearchComponent {
     private requestService: RequestService,
     private itineraryContactService: ItineraryContactService,
     private chatService: ChatService,
+    private airportAutocompleteService: AirportAutocompleteService,
     private router: Router
   ) {}
 
@@ -369,9 +377,20 @@ export class SearchComponent {
   }
 
 
+  openDatePicker(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    if (!input) return;
+
+    const isCoarsePointer = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+    if (isCoarsePointer && typeof (input as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
+      event.preventDefault();
+      (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+    }
+  }
+
   closeNativePicker(event: Event): void {
     const input = event.target as HTMLInputElement | null;
-    input?.blur();
+    window.setTimeout(() => input?.blur(), 0);
   }
 
   closeTrip() {
@@ -527,6 +546,28 @@ export class SearchComponent {
     } finally {
       this.savingContact = false;
     }
+  }
+
+
+  async onAirportInput(_field: string, event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement | null;
+    if (!input) return;
+
+    const query = input.value || '';
+    if (!query.trim()) {
+      this.airportSuggestions = [];
+      return;
+    }
+
+    try {
+      this.airportSuggestions = await this.airportAutocompleteService.search(query);
+    } catch {
+      this.airportSuggestions = [];
+    }
+  }
+
+  airportOptionLabel(airport: AirportEntry): string {
+    return this.airportAutocompleteService.optionLabel(airport);
   }
 
   showHelp(message: string): void {
