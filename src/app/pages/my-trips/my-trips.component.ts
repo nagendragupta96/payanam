@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { Itinerary } from '../../models/itinerary.model';
 import { ItineraryService } from '../../services/itinerary.service';
+import { RequestService } from '../../services/request.service';
 
 @Component({
   selector: 'app-my-trips',
@@ -27,6 +28,7 @@ import { ItineraryService } from '../../services/itinerary.service';
                 <th>Route</th>
                 <th>Destination</th>
                 <th>Dates</th>
+                <th>Request Count</th>
               </tr>
             </thead>
             <tbody>
@@ -39,6 +41,7 @@ import { ItineraryService } from '../../services/itinerary.service';
                 <td class="route-cell">{{ trip.origin_airport_code }} → {{ trip.destination_airport_code }}</td>
                 <td>{{ trip.destination || '-' }}</td>
                 <td class="date-cell">{{ trip.start_date }} → {{ trip.end_date || 'One way' }}</td>
+                <td>{{ requestCount(trip.id) }}</td>
               </tr>
             </tbody>
           </table>
@@ -53,13 +56,24 @@ export class MyTripsComponent {
   errorMessage = '';
   infoMessage = '';
   loading = false;
+  requestCounts: Record<string, number> = {};
 
-  constructor(private authService: AuthService, private itineraryService: ItineraryService, private route: ActivatedRoute) {
+  constructor(
+    private authService: AuthService,
+    private itineraryService: ItineraryService,
+    private requestService: RequestService,
+    private route: ActivatedRoute
+  ) {
     this.route.queryParamMap.subscribe((params) => {
       this.infoMessage = params.get('info') ?? this.infoMessage;
     });
 
     this.load();
+  }
+
+  requestCount(itineraryId?: string): number {
+    if (!itineraryId) return 0;
+    return this.requestCounts[itineraryId] ?? 0;
   }
 
   async refresh() {
@@ -78,7 +92,11 @@ export class MyTripsComponent {
     try {
       const { data, error } = await this.itineraryService.listMyTrips(userId);
       this.trips = data;
+      const itineraryIds = this.trips.map((trip) => trip.id!).filter(Boolean);
+      const countResult = await this.requestService.getCountsForItineraries(itineraryIds);
+      this.requestCounts = countResult.counts;
       if (error) this.errorMessage = error;
+      if (countResult.error) this.errorMessage = this.errorMessage || countResult.error;
     } finally {
       this.loading = false;
     }

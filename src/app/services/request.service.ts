@@ -228,6 +228,29 @@ export class RequestService {
     return { data: (data as RequestRecord | null) ?? null, error: error?.message ?? null };
   }
 
+
+  async getCountsForItineraries(itineraryIds: string[]): Promise<{ counts: Record<string, number>; error: string | null }> {
+    const ids = [...new Set(itineraryIds.filter(Boolean))];
+    if (!ids.length) return { counts: {}, error: null };
+
+    const { data, error } = await supabase
+      .from('requests')
+      .select('itinerary_id')
+      .in('itinerary_id', ids);
+
+    this.handleAuthFailure('getCountsForItineraries', error?.message ?? '');
+    if (error) return { counts: {}, error: error.message };
+
+    const counts: Record<string, number> = {};
+    for (const row of data ?? []) {
+      const itineraryId = (row as { itinerary_id?: string }).itinerary_id;
+      if (!itineraryId) continue;
+      counts[itineraryId] = (counts[itineraryId] ?? 0) + 1;
+    }
+
+    return { counts, error: null };
+  }
+
   private isActiveStatus(status: RequestRecord['status']): boolean {
     return status === 'PENDING' || status === 'ACCEPTED';
   }
