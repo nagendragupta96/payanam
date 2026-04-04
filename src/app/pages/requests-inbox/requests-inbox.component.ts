@@ -1,7 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy } from '@angular/core';
+import { Component } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { ChatService } from '../../services/chat.service';
 import { RequestRecord, RequestService } from '../../services/request.service';
@@ -23,7 +22,6 @@ import { RequestRecord, RequestService } from '../../services/request.service';
 
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
-        <div class="alert alert-secondary py-2" *ngIf="loading">Loading requests...</div>
 
         <h3 class="h6">Incoming</h3>
         <div class="table-scroll-hint d-md-none">↔ Scroll sideways to view full request details</div>
@@ -90,7 +88,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
     </div>
   `
 })
-export class RequestsInboxComponent implements OnDestroy {
+export class RequestsInboxComponent {
   incoming: RequestRecord[] = [];
   outgoing: RequestRecord[] = [];
   loading = false;
@@ -98,7 +96,6 @@ export class RequestsInboxComponent implements OnDestroy {
   rejectingId = '';
   errorMessage = '';
   infoMessage = '';
-  private readonly subscriptions = new Subscription();
 
   private labels: Record<string, string> = {};
 
@@ -109,14 +106,9 @@ export class RequestsInboxComponent implements OnDestroy {
     private route: ActivatedRoute,
     private router: Router
   ) {
-    this.subscriptions.add(this.route.queryParamMap.subscribe((params) => {
+    this.route.queryParamMap.subscribe((params) => {
       this.infoMessage = params.get('info') ?? '';
-    }));
-
-    this.subscriptions.add(this.authService.appForeground$.subscribe(() => {
-      console.debug('[requests] foreground event -> refreshing inbox');
-      void this.load();
-    }));
+    });
 
     void this.load();
   }
@@ -229,9 +221,5 @@ export class RequestsInboxComponent implements OnDestroy {
 
   private findRequestType(requestId: string): RequestRecord['request_type'] | null {
     return this.incoming.find((req) => req.id === requestId)?.request_type ?? null;
-  }
-
-  ngOnDestroy(): void {
-    this.subscriptions.unsubscribe();
   }
 }

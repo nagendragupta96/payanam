@@ -147,43 +147,23 @@ export class RequestService {
   }
 
   async inbox(userId: string) {
-    console.debug('[requests] inbox start', { userId });
-    const runIncoming = () => supabase
+    const incoming = await supabase
       .from('requests')
       .select('*, itineraries(*)')
       .eq('owner_id', userId)
       .order('created_at', { ascending: false });
 
-    const runOutgoing = () => supabase
+    const outgoing = await supabase
       .from('requests')
       .select('*, itineraries(*)')
       .eq('requester_id', userId)
       .order('created_at', { ascending: false });
 
-    let incoming = await runIncoming();
-    let outgoing = await runOutgoing();
-
-    const queryError = incoming.error?.message || outgoing.error?.message || '';
-    if (queryError) {
-      this.handleAuthFailure('inbox', queryError);
-      const recovered = await this.authService.recoverSessionForDataQuery('request.inbox', queryError);
-      if (recovered) {
-        incoming = await runIncoming();
-        outgoing = await runOutgoing();
-      }
-    }
-
-    const result = {
+    return {
       incoming: (incoming.data ?? []) as RequestRecord[],
       outgoing: (outgoing.data ?? []) as RequestRecord[],
       error: incoming.error?.message || outgoing.error?.message || null
     };
-    console.debug('[requests] inbox end', {
-      incoming: result.incoming.length,
-      outgoing: result.outgoing.length,
-      hasError: !!result.error
-    });
-    return result;
   }
 
   async acceptRequest(requestId: string): Promise<{ threadId: string | null; error: string | null }> {

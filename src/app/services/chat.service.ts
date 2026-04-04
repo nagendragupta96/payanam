@@ -37,23 +37,11 @@ export class ChatService {
   }
 
   async listThreadsForUser(userId: string): Promise<{ data: ChatThread[]; error: string | null }> {
-    console.debug('[chat-service] listThreadsForUser start', { userId });
-    const runQuery = () => supabase
+    const { data, error } = await supabase
       .from('chat_threads')
       .select('id, owner_id, requester_id, request_id, created_at, requests(request_type)')
       .or(`owner_id.eq.${userId},requester_id.eq.${userId}`)
       .order('created_at', { ascending: false });
-
-    let { data, error } = await runQuery();
-    if (error) {
-      this.handleAuthFailure('listThreadsForUser', error.message);
-      const recovered = await this.authService.recoverSessionForDataQuery('chat.listThreadsForUser', error.message);
-      if (recovered) {
-        const retry = await runQuery();
-        data = retry.data;
-        error = retry.error;
-      }
-    }
 
     const mapped = ((data ?? []) as any[]).map((row) => ({
       id: row.id,
@@ -65,9 +53,7 @@ export class ChatService {
     })) as ChatThread[];
 
     this.handleAuthFailure('listThreadsForUser', error?.message ?? '');
-    const result = { data: mapped, error: error?.message ?? null };
-    console.debug('[chat-service] listThreadsForUser end', { count: result.data.length, hasError: !!result.error });
-    return result;
+    return { data: mapped, error: error?.message ?? null };
   }
 
   async getThreadByRequest(requestId: string): Promise<{ data: ChatThread | null; error: string | null }> {
@@ -93,28 +79,14 @@ export class ChatService {
   }
 
   async listMessages(threadId: string): Promise<{ data: ChatMessage[]; error: string | null }> {
-    console.debug('[chat-service] listMessages start', { threadId });
-    const runQuery = () => supabase
+    const { data, error } = await supabase
       .from('chat_messages')
       .select('id, thread_id, body, sender_id, created_at')
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true });
 
-    let { data, error } = await runQuery();
-    if (error) {
-      this.handleAuthFailure('listMessages', error.message);
-      const recovered = await this.authService.recoverSessionForDataQuery('chat.listMessages', error.message);
-      if (recovered) {
-        const retry = await runQuery();
-        data = retry.data;
-        error = retry.error;
-      }
-    }
-
     this.handleAuthFailure('listMessages', error?.message ?? '');
-    const result = { data: (data as ChatMessage[]) ?? [], error: error?.message ?? null };
-    console.debug('[chat-service] listMessages end', { threadId, count: result.data.length, hasError: !!result.error });
-    return result;
+    return { data: (data as ChatMessage[]) ?? [], error: error?.message ?? null };
   }
 
   async listLastMessagesByThread(threadIds: string[]): Promise<{ data: Record<string, ChatMessage>; error: string | null }> {

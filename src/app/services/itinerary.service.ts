@@ -200,37 +200,24 @@ export class ItineraryService {
   }
 
   async listMyTrips(userId: string): Promise<{ data: Itinerary[]; error: string | null }> {
-    console.debug('[itinerary] listMyTrips start', { userId });
-    const runQuery = () => supabase
+    const { data, error } = await supabase
       .from('itineraries')
       .select('*')
       .eq('owner_id', userId)
       .order('start_date', { ascending: false });
 
-    let { data, error } = await runQuery();
+    if (error) this.logQueryError('listMyTrips', error.message);
 
-    if (error) {
-      this.logQueryError('listMyTrips', error.message);
-      const recovered = await this.authService.recoverSessionForDataQuery('itinerary.listMyTrips', error.message);
-      if (recovered) {
-        const retry = await runQuery();
-        data = retry.data;
-        error = retry.error;
-      }
-    }
-
-    console.debug('[itinerary] listMyTrips end', { count: (data as Itinerary[] | null)?.length ?? 0, hasError: !!error });
     return { data: (data as Itinerary[]) ?? [], error: error?.message ?? null };
   }
 
   async search(params: SearchParams): Promise<{ data: Itinerary[]; error: string | null }> {
-    console.debug('[itinerary] search start', params);
     const originCode = this.normalizeAirportCode(params.originAirportCode);
     const destinationCode = this.normalizeAirportCode(params.destinationAirportCode);
     const stop1 = this.normalizeAirportCode(params.stop1AirportCode ?? '');
     const stop2 = this.normalizeAirportCode(params.stop2AirportCode ?? '');
 
-    const runQuery = () => supabase
+    const { data, error } = await supabase
       .from('public_itinerary_search')
       .select('*')
       .eq('origin_airport_code', originCode)
@@ -240,19 +227,8 @@ export class ItineraryService {
       .gte('end_date', params.searchStartDate)
       .limit(300);
 
-    let { data, error } = await runQuery();
+    if (error) this.logQueryError('search', error.message);
 
-    if (error) {
-      this.logQueryError('search', error.message);
-      const recovered = await this.authService.recoverSessionForDataQuery('itinerary.search', error.message);
-      if (recovered) {
-        const retry = await runQuery();
-        data = retry.data;
-        error = retry.error;
-      }
-    }
-
-    console.debug('[itinerary] search end', { count: (data as Itinerary[] | null)?.length ?? 0, hasError: !!error });
     if (error) return { data: [], error: error.message };
 
     const itineraries = ((data ?? []) as any[]).map((row) => ({ ...row, legs: (row.legs ?? []) as FlightLeg[] })) as Itinerary[];

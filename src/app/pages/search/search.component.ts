@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, HostListener, OnDestroy, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, ViewChild } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Itinerary } from '../../models/itinerary.model';
@@ -10,7 +10,6 @@ import { ItineraryContactService } from '../../services/itinerary-contact.servic
 import { ChatService } from '../../services/chat.service';
 import { AirportAutocompleteService, AirportEntry } from '../../services/airport-autocomplete.service';
 import { HelpIconComponent } from '../../shared/help-icon.component';
-import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-search',
@@ -21,7 +20,6 @@ import { Subscription } from 'rxjs';
 
     <div #errorAlert tabindex="-1" class="alert alert-danger" *ngIf="errorMessage" role="alert">{{ errorMessage }}</div>
     <div class="alert alert-info" *ngIf="infoMessage">{{ infoMessage }}</div>
-    <div class="alert alert-secondary py-2" *ngIf="loadingSearch">Loading search results...</div>
 
     <form [formGroup]="form" (ngSubmit)="search()" class="card card-body mb-4">
       <div class="row g-3">
@@ -208,7 +206,7 @@ import { Subscription } from 'rxjs';
     `
   ]
 })
-export class SearchComponent implements OnDestroy {
+export class SearchComponent {
   @ViewChild('errorAlert') errorAlert?: ElementRef<HTMLElement>;
   errorMessage = '';
   infoMessage = 'Use airport codes and date range to search.';
@@ -228,7 +226,6 @@ export class SearchComponent implements OnDestroy {
   contactForm: any = { contact_name: '', contact_phone: '', contact_email: '', notes: '' };
   private ownerLabels: Record<string, string> = {};
   private latestRequestByType: Partial<Record<RequestType, 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED'>> = {};
-  private readonly subscriptions = new Subscription();
 
   form = this.fb.group({
     originAirportCode: ['', Validators.required],
@@ -248,17 +245,7 @@ export class SearchComponent implements OnDestroy {
     private chatService: ChatService,
     private airportAutocompleteService: AirportAutocompleteService,
     private router: Router
-  ) {
-    this.subscriptions.add(this.authService.appForeground$.subscribe(() => {
-      console.debug('[search] foreground event -> attempting data refresh');
-      if (this.hasSearched && !this.loadingSearch) {
-        void this.search();
-      }
-      if (this.selectedTrip?.id && !this.loadingTripId) {
-        void this.openTrip(this.selectedTrip);
-      }
-    }));
-  }
+  ) {}
 
   get isLoggedIn(): boolean {
     return !!this.authService.currentSession;
@@ -560,10 +547,6 @@ export class SearchComponent implements OnDestroy {
 
   airportOptionLabel(airport: AirportEntry): string {
     return this.airportAutocompleteService.optionLabel(airport);
-  }
-
-  ngOnDestroy(): void {
-    this.subscriptions.unsubscribe();
   }
 
 }

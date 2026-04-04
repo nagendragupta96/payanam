@@ -1,6 +1,6 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
-import { BehaviorSubject, Subject } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, supabaseConfigIssue } from './supabase-client';
 import { environment } from '../../environments/environment';
@@ -11,8 +11,6 @@ export class AuthService implements OnDestroy {
   readonly session$ = this.sessionSubject.asObservable();
   private readonly authErrorSubject = new BehaviorSubject<string>('');
   readonly authError$ = this.authErrorSubject.asObservable();
-  private readonly appForegroundSubject = new Subject<number>();
-  readonly appForeground$ = this.appForegroundSubject.asObservable();
   private sessionCheckInFlight: Promise<void> | null = null;
   private readonly sessionTimeoutMs = 8000;
   private readonly foregroundValidationTimeoutMs = 6000;
@@ -21,14 +19,11 @@ export class AuthService implements OnDestroy {
   private lastForegroundValidationAt = 0;
   private readonly minForegroundValidationGapMs = 15000;
   private authStateSubscription: { unsubscribe: () => void } | null = null;
-  private authListenerInitialized = false;
   private explicitLogoutInProgress = false;
   private restoreOnNullInFlight: Promise<boolean> | null = null;
   private foregroundValidationInFlight: Promise<void> | null = null;
   private forceResetInProgress = false;
   private authRecoveryInFlight: Promise<void> | null = null;
-  private lastForegroundSignalAt = 0;
-  private authStateQueue: Promise<void> = Promise.resolve();
 
   constructor(private router: Router) {
     this.debug('AuthService initialized');
@@ -37,93 +32,56 @@ export class AuthService implements OnDestroy {
       this.debug('Initial session bootstrap complete', { hasSession: !!this.currentSession?.user });
     });
 
-    this.initAuthStateListener();
+    this.authStateSubscription = supabase.auth.onAuthStateChange(async (event, session) => {
+      this.debug('onAuthStateChange', { event, hasSession: !!session?.user, explicitLogoutInProgress: this.explicitLogoutInProgress });
+      if (!session?.user) {
+        const hadSession = !!this.currentSession?.user;
 
-  }
+        if (this.explicitLogoutInProgress) {
+          this.setSession(null);
+          this.clearAuthError();
+          await this.handleSignedOutState();
+          this.explicitLogoutInProgress = false;
+          return;
+        }
 
+        if (!this.explicitLogoutInProgress) {
+          const restored = await this.tryRecoverSession(`auth-state:${event}`);
+          if (restored) {
+            return;
+          }
+        }
 
-  /**
-   * Permanent session-stability fix:
-   * - Register Supabase auth state listener exactly once for this service instance.
-   * - Never clear an in-memory session on transient null auth events without explicit confirmation.
-   */
-  private initAuthStateListener(): void {
-    if (this.authListenerInitialized && this.authStateSubscription) {
-      this.debug('initAuthStateListener skipped (already initialized)');
-      return;
-    }
+        if (hadSession && event !== 'SIGNED_OUT') {
+          // Guard against transient null-session events during tab/window focus changes.
+          this.setAuthError('Connection interrupted. Reconnecting your session...');
+          return;
+        }
 
-    this.authListenerInitialized = true;
-    this.authStateSubscription = supabase.auth.onAuthStateChange((event, session) => {
-      this.debug('onAuthStateChange event queued', {
-        event,
-        hasSession: !!session?.user,
-        explicitLogoutInProgress: this.explicitLogoutInProgress
-      });
-      this.queueAuthStateHandling(event, session);
-    }).data.subscription;
-  }
-
-  private queueAuthStateHandling(event: string, session: Session | null): void {
-    this.authStateQueue = this.authStateQueue
-      .then(() => this.processAuthStateChange(event, session))
-      .catch((error) => {
-        this.debug('processAuthStateChange failed', {
-          event,
-          message: error instanceof Error ? error.message : String(error)
-        });
-      });
-  }
-
-  private async processAuthStateChange(event: string, session: Session | null): Promise<void> {
-    this.debug('processAuthStateChange start', { event, hasSession: !!session?.user });
-
-    if (!session?.user) {
-      const hadSession = !!this.currentSession?.user;
-
-      if (this.explicitLogoutInProgress) {
         this.setSession(null);
-        this.clearAuthError();
+        if (hadSession) {
+          this.setAuthError('Your session has expired. Please login again.');
+        } else {
+          this.clearAuthError();
+        }
         await this.handleSignedOutState();
         this.explicitLogoutInProgress = false;
         return;
       }
 
-      const restored = await this.tryRecoverSession(`auth-state:${event}`);
-      if (restored) {
-        return;
+      this.setSession(session);
+      this.clearAuthError();
+      this.explicitLogoutInProgress = false;
+
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        await this.ensureProfileRecord(session.user);
       }
 
-      if (hadSession) {
-        const confirmedInvalid = await this.confirmSessionInvalid(`auth-state:${event}`);
-        if (!confirmedInvalid) {
-          this.setAuthError('Connection interrupted. Reconnecting your session...');
-          return;
-        }
+      if (event === 'TOKEN_REFRESHED') {
+        this.debug('Token refreshed successfully');
       }
+    }).data.subscription;
 
-      this.setSession(null);
-      if (hadSession) {
-        this.setAuthError('Your session has expired. Please login again.');
-      } else {
-        this.clearAuthError();
-      }
-      await this.handleSignedOutState();
-      return;
-    }
-
-    this.setSession(session);
-    this.clearAuthError();
-    this.explicitLogoutInProgress = false;
-    this.notifyAppForeground(`auth-event:${event}`);
-
-    if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-      await this.ensureProfileRecord(session.user);
-    }
-
-    if (event === 'TOKEN_REFRESHED') {
-      this.debug('Token refreshed successfully');
-    }
   }
 
   ngOnDestroy(): void {
@@ -143,13 +101,11 @@ export class AuthService implements OnDestroy {
     const now = Date.now();
     if (!force && now - this.lastForegroundValidationAt < this.minForegroundValidationGapMs) {
       this.debug('Foreground validation skipped (throttled)');
-      this.signalAppVisible('foreground-throttled');
       return;
     }
 
     if (this.foregroundValidationInFlight) {
       this.debug('Foreground validation skipped (already in flight)');
-      this.signalAppVisible('foreground-in-flight');
       return;
     }
 
@@ -173,22 +129,13 @@ export class AuthService implements OnDestroy {
             return;
           }
 
-          const confirmedInvalid = await this.confirmSessionInvalid('foreground');
-          if (!confirmedInvalid) {
-            this.setAuthError('Connection interrupted. Reconnecting your session...');
-            return;
-          }
-
-          this.setSession(null);
-          this.setAuthError('Your session has expired. Please login again.');
-          await this.handleSignedOutState();
+          this.setAuthError('Connection interrupted. Reconnecting your session...');
           return;
         }
 
         this.setSession(session);
         if (session?.user) {
           this.clearAuthError();
-          this.notifyAppForeground('foreground-validation');
         }
         if (!session?.user) {
           if (hadSession) {
@@ -253,15 +200,7 @@ export class AuthService implements OnDestroy {
             return;
           }
 
-          const confirmedInvalid = await this.confirmSessionInvalid('loadSession');
-          if (!confirmedInvalid) {
-            this.setAuthError('Connection interrupted. Reconnecting your session...');
-            return;
-          }
-
-          this.setSession(null);
-          this.setAuthError('Your session has expired. Please login again.');
-          await this.handleSignedOutState();
+          this.setAuthError('Connection interrupted. Reconnecting your session...');
           return;
         }
 
@@ -481,27 +420,6 @@ export class AuthService implements OnDestroy {
     }
   }
 
-
-  async recoverSessionForDataQuery(operation: string, message: string): Promise<boolean> {
-    this.debug('recoverSessionForDataQuery', { operation, message });
-    if (!this.isAuthFailureMessage(message)) return false;
-
-    const restored = await this.tryRecoverSession(`data:${operation}`);
-    if (restored) {
-      return true;
-    }
-
-    const confirmedInvalid = await this.confirmSessionInvalid(`data:${operation}`);
-    if (!confirmedInvalid && !!this.currentSession?.user) {
-      return true;
-    }
-
-    this.setSession(null);
-    this.setAuthError('Your session has expired. Please login again.');
-    await this.handleSignedOutState();
-    return false;
-  }
-
   reportAuthFailure(operation: string, message: string): void {
     this.debug('reportAuthFailure', { operation, message });
     if (!this.isAuthFailureMessage(message)) return;
@@ -516,7 +434,6 @@ export class AuthService implements OnDestroy {
       const restored = await this.tryRecoverSession(`query:${operation}`);
       if (restored) {
         this.clearAuthError();
-        this.notifyAppForeground(`query-recovered:${operation}`);
         return;
       }
 
@@ -526,49 +443,6 @@ export class AuthService implements OnDestroy {
     })().finally(() => {
       this.authRecoveryInFlight = null;
     });
-  }
-
-  signalAppVisible(source: string): void {
-    this.notifyAppForeground(source);
-  }
-
-
-  private async confirmSessionInvalid(source: string): Promise<boolean> {
-    this.debug('confirmSessionInvalid start', { source });
-
-    if (this.explicitLogoutInProgress) {
-      return true;
-    }
-
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const { data, error } = await this.withTimeout(supabase.auth.getSession(), this.sessionTimeoutMs);
-        if (!error && data.session?.user) {
-          this.debug('confirmSessionInvalid recovered via getSession', { source, attempt });
-          this.setSession(data.session);
-          this.clearAuthError();
-          return false;
-        }
-      } catch {
-        this.debug('confirmSessionInvalid getSession timeout', { source, attempt });
-      }
-      await this.wait(250 * attempt);
-    }
-
-    try {
-      const { data, error } = await this.withTimeout(supabase.auth.refreshSession(), this.sessionTimeoutMs);
-      if (!error && data.session?.user) {
-        this.debug('confirmSessionInvalid recovered via refreshSession', { source });
-        this.setSession(data.session);
-        this.clearAuthError();
-        return false;
-      }
-    } catch {
-      this.debug('confirmSessionInvalid refreshSession timeout', { source });
-    }
-
-    this.debug('confirmSessionInvalid confirmed invalid', { source });
-    return true;
   }
 
   private async tryRecoverSession(source: string): Promise<boolean> {
@@ -787,15 +661,6 @@ export class AuthService implements OnDestroy {
 
     clearMatching(window.localStorage);
     clearMatching(window.sessionStorage);
-  }
-
-  private notifyAppForeground(source: string): void {
-    if (!this.currentSession?.user) return;
-    const now = Date.now();
-    if (now - this.lastForegroundSignalAt < 1000) return;
-    this.lastForegroundSignalAt = now;
-    this.debug('notifyAppForeground', { source });
-    this.appForegroundSubject.next(now);
   }
 
   private debug(message: string, meta?: unknown): void {
