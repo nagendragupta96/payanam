@@ -1,8 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy } from '@angular/core';
+import { Component } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { RouterLink } from '@angular/router';
-import { Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { Itinerary } from '../../models/itinerary.model';
 import { ItineraryService } from '../../services/itinerary.service';
@@ -52,13 +51,12 @@ import { RequestService } from '../../services/request.service';
     </div>
   `
 })
-export class MyTripsComponent implements OnDestroy {
+export class MyTripsComponent {
   trips: Itinerary[] = [];
   errorMessage = '';
   infoMessage = '';
   loading = false;
   requestCounts: Record<string, number> = {};
-  private readonly subscriptions = new Subscription();
 
   constructor(
     private authService: AuthService,
@@ -66,14 +64,9 @@ export class MyTripsComponent implements OnDestroy {
     private requestService: RequestService,
     private route: ActivatedRoute
   ) {
-    this.subscriptions.add(this.route.queryParamMap.subscribe((params) => {
+    this.route.queryParamMap.subscribe((params) => {
       this.infoMessage = params.get('info') ?? this.infoMessage;
-    }));
-
-    this.subscriptions.add(this.authService.appForeground$.subscribe(() => {
-      console.debug('[my-trips] foreground event -> refreshing trips');
-      void this.load();
-    }));
+    });
 
     this.load();
   }
@@ -127,9 +120,5 @@ export class MyTripsComponent implements OnDestroy {
 
     this.infoMessage = 'Itinerary deleted successfully.';
     await this.load();
-  }
-
-  ngOnDestroy(): void {
-    this.subscriptions.unsubscribe();
   }
 }

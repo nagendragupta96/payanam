@@ -7,7 +7,6 @@ import { AuthService } from '../../services/auth.service';
 import { ChatMessage, ChatService, ChatThread } from '../../services/chat.service';
 import { MessageNotificationService } from '../../services/message-notification.service';
 import { supabase } from '../../services/supabase-client';
-import { Subscription } from 'rxjs';
 
 interface ThreadView extends ChatThread {
   otherUserId: string;
@@ -120,8 +119,6 @@ export class ChatComponent implements OnDestroy {
 
   private messageChannel: RealtimeChannel | null = null;
   private threadChannel: RealtimeChannel | null = null;
-  private readonly subscriptions = new Subscription();
-  private initInFlight = false;
 
   form = this.fb.group({ content: ['', Validators.required] });
 
@@ -134,65 +131,55 @@ export class ChatComponent implements OnDestroy {
     private messageNotificationService: MessageNotificationService
   ) {
     this.currentUserId = this.authService.currentSession?.user.id ?? '';
-    this.subscriptions.add(this.authService.appForeground$.subscribe(() => {
-      console.debug('[chat] foreground event -> reloading threads/messages');
-      void this.init();
-    }));
     void this.init();
   }
 
   async init() {
-    if (this.initInFlight) return;
     const userId = this.authService.currentSession?.user.id;
     if (!userId) return;
-    this.initInFlight = true;
 
-    try {
-      this.errorMessage = '';
-      this.infoMessage = '';
+    this.errorMessage = '';
+    this.infoMessage = '';
 
-      const threadsResult = await this.chatService.listThreadsForUser(userId);
-      if (threadsResult.error) {
-        this.errorMessage = threadsResult.error;
-        return;
-      }
-
-      const otherIds = threadsResult.data.map((t) => (t.owner_id === userId ? t.requester_id : t.owner_id));
-      this.senderLabels = await this.chatService.getProfileNames(otherIds);
-
-      const lastMessagesResult = await this.chatService.listLastMessagesByThread(threadsResult.data.map((t) => t.id));
-      const lastByThread = lastMessagesResult.data;
-
-      this.threadViews = threadsResult.data
-        .map((thread) => {
-          const otherUserId = thread.owner_id === userId ? thread.requester_id : thread.owner_id;
-          const otherUserLabel = this.senderLabels[otherUserId] || 'User';
-          return {
-            ...thread,
-            otherUserId,
-            otherUserLabel,
-            otherUserDisplay: `${otherUserLabel} (${this.formatRequestType(thread.request_type)})`,
-            lastMessage: lastByThread[thread.id],
-            unreadCount: 0
-          };
-        })
-        .sort((a, b) => {
-          const ad = a.lastMessage?.created_at || a.created_at || '';
-          const bd = b.lastMessage?.created_at || b.created_at || '';
-          return bd.localeCompare(ad);
-        });
-
-      const routeThreadId = this.route.snapshot.paramMap.get('threadId');
-      if (routeThreadId && this.threadViews.some((t) => t.id === routeThreadId)) {
-        await this.selectThread(routeThreadId);
-      } else if (this.threadViews.length) {
-        await this.selectThread(this.threadViews[0].id);
-      }
-
-      this.subscribeThreadListUpdates();
-    } finally {
-      this.initInFlight = false;
+    const threadsResult = await this.chatService.listThreadsForUser(userId);
+    if (threadsResult.error) {
+      this.errorMessage = threadsResult.error;
+      return;
     }
+
+    const otherIds = threadsResult.data.map((t) => (t.owner_id === userId ? t.requester_id : t.owner_id));
+    this.senderLabels = await this.chatService.getProfileNames(otherIds);
+
+    const lastMessagesResult = await this.chatService.listLastMessagesByThread(threadsResult.data.map((t) => t.id));
+    const lastByThread = lastMessagesResult.data;
+
+    this.threadViews = threadsResult.data
+      .map((thread) => {
+        const otherUserId = thread.owner_id === userId ? thread.requester_id : thread.owner_id;
+        const otherUserLabel = this.senderLabels[otherUserId] || 'User';
+        return {
+          ...thread,
+          otherUserId,
+          otherUserLabel,
+          otherUserDisplay: `${otherUserLabel} (${this.formatRequestType(thread.request_type)})`,
+          lastMessage: lastByThread[thread.id],
+          unreadCount: 0
+        };
+      })
+      .sort((a, b) => {
+        const ad = a.lastMessage?.created_at || a.created_at || '';
+        const bd = b.lastMessage?.created_at || b.created_at || '';
+        return bd.localeCompare(ad);
+      });
+
+    const routeThreadId = this.route.snapshot.paramMap.get('threadId');
+    if (routeThreadId && this.threadViews.some((t) => t.id === routeThreadId)) {
+      await this.selectThread(routeThreadId);
+    } else if (this.threadViews.length) {
+      await this.selectThread(this.threadViews[0].id);
+    }
+
+    this.subscribeThreadListUpdates();
   }
 
   getSenderLabel(userId: string): string {
@@ -331,7 +318,6 @@ export class ChatComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
-    this.subscriptions.unsubscribe();
     this.messageChannel?.unsubscribe();
     this.threadChannel?.unsubscribe();
   }
