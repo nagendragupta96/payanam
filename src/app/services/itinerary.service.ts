@@ -200,23 +200,13 @@ export class ItineraryService {
   }
 
   async listMyTrips(userId: string): Promise<{ data: Itinerary[]; error: string | null }> {
-    const runQuery = () => supabase
+    const { data, error } = await supabase
       .from('itineraries')
       .select('*')
       .eq('owner_id', userId)
       .order('start_date', { ascending: false });
 
-    let { data, error } = await runQuery();
-
-    if (error) {
-      this.logQueryError('listMyTrips', error.message);
-      const recovered = await this.authService.recoverSessionForDataQuery('itinerary.listMyTrips', error.message);
-      if (recovered) {
-        const retry = await runQuery();
-        data = retry.data;
-        error = retry.error;
-      }
-    }
+    if (error) this.logQueryError('listMyTrips', error.message);
 
     return { data: (data as Itinerary[]) ?? [], error: error?.message ?? null };
   }
@@ -227,7 +217,7 @@ export class ItineraryService {
     const stop1 = this.normalizeAirportCode(params.stop1AirportCode ?? '');
     const stop2 = this.normalizeAirportCode(params.stop2AirportCode ?? '');
 
-    const runQuery = () => supabase
+    const { data, error } = await supabase
       .from('public_itinerary_search')
       .select('*')
       .eq('origin_airport_code', originCode)
@@ -237,17 +227,7 @@ export class ItineraryService {
       .gte('end_date', params.searchStartDate)
       .limit(300);
 
-    let { data, error } = await runQuery();
-
-    if (error) {
-      this.logQueryError('search', error.message);
-      const recovered = await this.authService.recoverSessionForDataQuery('itinerary.search', error.message);
-      if (recovered) {
-        const retry = await runQuery();
-        data = retry.data;
-        error = retry.error;
-      }
-    }
+    if (error) this.logQueryError('search', error.message);
 
     if (error) return { data: [], error: error.message };
 

@@ -90,20 +90,17 @@ export class AppComponent implements OnDestroy {
 
   private onWindowFocus = () => {
     this.log('window focus -> lightweight foreground validation');
-    this.authService.signalAppVisible('window-focus');
     void this.runForegroundValidation();
   };
 
   private onWindowOnline = () => {
     this.log('window online -> forced foreground validation');
-    this.authService.signalAppVisible('window-online');
     void this.runForegroundValidation(true);
   };
 
   private onPageShow = (event: PageTransitionEvent) => {
     if (event.persisted) {
       this.log('pageshow persisted -> forced foreground validation');
-      this.authService.signalAppVisible('pageshow-persisted');
       void this.runForegroundValidation(true);
     }
   };
@@ -116,7 +113,6 @@ export class AppComponent implements OnDestroy {
 
     const hiddenMs = this.hiddenAt ? Date.now() - this.hiddenAt : 0;
     this.log('visibilitychange -> visible', { hiddenMs });
-    this.authService.signalAppVisible('visibility-visible');
     void this.runForegroundValidation(hiddenMs > 10_000);
   };
 
