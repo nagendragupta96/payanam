@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { supabase } from './supabase-client';
+import { dataFetchErrorMessage, runSupabaseQuery, supabase } from './supabase-client';
 import { FlightLeg, Itinerary } from '../models/itinerary.model';
 import { AuthService } from './auth.service';
 
@@ -41,7 +41,7 @@ export class ItineraryService {
       return_date: itinerary.end_date ?? null
     };
 
-      const created: any = await this.withTimeout(Promise.resolve(supabase.from('itineraries').insert(header).select('id').single()));
+      const created: any = await this.withTimeout('itinerary.create.header', supabase.from('itineraries').insert(header).select('id').single());
       if (created.error) {
         return { error: `Failed to save itinerary: ${created.error.message}`, warning: null };
       }
@@ -61,7 +61,7 @@ export class ItineraryService {
     }));
 
       if (legs.length) {
-        const { error } = (await this.withTimeout(Promise.resolve(supabase.from('itinerary_legs').insert(legs)))) as any;
+        const { error } = (await this.withTimeout('itinerary.create.legs', supabase.from('itinerary_legs').insert(legs))) as any;
         if (error) {
           return { error: `Trip header saved but failed to save legs: ${error.message}`, warning: null };
         }
@@ -87,7 +87,7 @@ export class ItineraryService {
           },
           { onConflict: 'itinerary_id' }
         );
-        const { error } = (await this.withTimeout(Promise.resolve(contactUpsert))) as any;
+        const { error } = (await this.withTimeout('itinerary.create.contact', contactUpsert)) as any;
 
         if (error) {
           warning = `Trip saved, but contact details failed to save: ${error.message}`;
@@ -107,31 +107,37 @@ export class ItineraryService {
     try {
       let warning: string | null = null;
 
-      const headerUpdate = await supabase
-        .from('itineraries')
-        .update({
-          origin_airport_code: itinerary.origin_airport_code,
-          destination_airport_code: itinerary.destination_airport_code,
-          start_date: itinerary.start_date,
-          end_date: itinerary.end_date ?? itinerary.start_date,
-          destination: itinerary.destination ?? null,
-          notes: itinerary.notes ?? null,
-          origin_airport: itinerary.origin_airport_code,
-          destination_airport: itinerary.destination_airport_code,
-          depart_date: itinerary.start_date,
-          return_date: itinerary.end_date ?? null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', itineraryId)
-        .eq('owner_id', ownerId)
-        .select('id')
-        .maybeSingle();
+      const headerUpdate = await this.withTimeout(
+        'itinerary.update.header',
+        supabase
+          .from('itineraries')
+          .update({
+            origin_airport_code: itinerary.origin_airport_code,
+            destination_airport_code: itinerary.destination_airport_code,
+            start_date: itinerary.start_date,
+            end_date: itinerary.end_date ?? itinerary.start_date,
+            destination: itinerary.destination ?? null,
+            notes: itinerary.notes ?? null,
+            origin_airport: itinerary.origin_airport_code,
+            destination_airport: itinerary.destination_airport_code,
+            depart_date: itinerary.start_date,
+            return_date: itinerary.end_date ?? null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', itineraryId)
+          .eq('owner_id', ownerId)
+          .select('id')
+          .maybeSingle()
+      );
 
       if (headerUpdate.error || !headerUpdate.data?.id) {
         return { error: headerUpdate.error?.message ?? 'Unable to update itinerary.', warning: null };
       }
 
-      const removeLegs = await supabase.from('itinerary_legs').delete().eq('itinerary_id', itineraryId);
+      const removeLegs = await this.withTimeout(
+        'itinerary.update.removeLegs',
+        supabase.from('itinerary_legs').delete().eq('itinerary_id', itineraryId)
+      );
       if (removeLegs.error) {
         return { error: `Itinerary updated, but old legs cleanup failed: ${removeLegs.error.message}`, warning: null };
       }
@@ -149,7 +155,7 @@ export class ItineraryService {
       }));
 
       if (legs.length) {
-        const insertedLegs = await supabase.from('itinerary_legs').insert(legs);
+        const insertedLegs = await this.withTimeout('itinerary.update.insertLegs', supabase.from('itinerary_legs').insert(legs));
         if (insertedLegs.error) {
           return { error: `Itinerary updated, but saving legs failed: ${insertedLegs.error.message}`, warning: null };
         }
@@ -164,23 +170,29 @@ export class ItineraryService {
       );
 
       if (hasContactDetails) {
-        const upsertContact = await supabase.from('itinerary_contact_details').upsert(
-          {
-            itinerary_id: itineraryId,
-            owner_id: ownerId,
-            contact_name: contact?.contact_name?.trim() || null,
-            contact_phone: contact?.contact_phone?.trim() || null,
-            contact_email: contact?.contact_email?.trim() || null,
-            notes: contact?.notes?.trim() || null
-          },
-          { onConflict: 'itinerary_id' }
+        const upsertContact = await this.withTimeout(
+          'itinerary.update.contact',
+          supabase.from('itinerary_contact_details').upsert(
+            {
+              itinerary_id: itineraryId,
+              owner_id: ownerId,
+              contact_name: contact?.contact_name?.trim() || null,
+              contact_phone: contact?.contact_phone?.trim() || null,
+              contact_email: contact?.contact_email?.trim() || null,
+              notes: contact?.notes?.trim() || null
+            },
+            { onConflict: 'itinerary_id' }
+          )
         );
 
         if (upsertContact.error) {
           warning = `Itinerary updated, but contact details failed to update: ${upsertContact.error.message}`;
         }
       } else {
-        const removeContact = await supabase.from('itinerary_contact_details').delete().eq('itinerary_id', itineraryId).eq('owner_id', ownerId);
+        const removeContact = await this.withTimeout(
+          'itinerary.update.removeContact',
+          supabase.from('itinerary_contact_details').delete().eq('itinerary_id', itineraryId).eq('owner_id', ownerId)
+        );
         if (removeContact.error) {
           warning = `Itinerary updated, but clearing contact details failed: ${removeContact.error.message}`;
         }
@@ -192,32 +204,59 @@ export class ItineraryService {
     }
   }
 
-  private withTimeout<T>(promise: PromiseLike<T>, timeoutMs = this.queryTimeoutMs): Promise<T> {
-    return Promise.race([
-      Promise.resolve(promise),
-      new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error('timeout')), timeoutMs))
-    ]);
+  private withTimeout<T>(operation: string, promise: PromiseLike<T>, timeoutMs = this.queryTimeoutMs): Promise<T> {
+    return runSupabaseQuery(operation, promise, timeoutMs);
   }
 
   async listMyTrips(userId: string): Promise<{ data: Itinerary[]; error: string | null }> {
-    const { data, error } = await supabase
+    console.debug('[itinerary] listMyTrips start', { userId });
+    const runQuery = () => supabase
       .from('itineraries')
       .select('*')
       .eq('owner_id', userId)
       .order('start_date', { ascending: false });
 
-    if (error) this.logQueryError('listMyTrips', error.message);
+    let data: any[] | null = null;
+    let error: { message: string } | null = null;
 
+    try {
+      const result = await this.withTimeout('itinerary.listMyTrips', runQuery());
+      data = result.data as any[] | null;
+      error = result.error;
+    } catch (caught) {
+      const message = dataFetchErrorMessage('Loading trips', caught);
+      this.logQueryError('listMyTrips', message);
+      return { data: [], error: message };
+    }
+
+    if (error) {
+      this.logQueryError('listMyTrips', error.message);
+      const recovered = await this.authService.recoverSessionForDataQuery('itinerary.listMyTrips', error.message);
+      if (recovered) {
+        try {
+          const retry = await this.withTimeout('itinerary.listMyTrips.retry', runQuery());
+          data = retry.data as any[] | null;
+          error = retry.error;
+        } catch (caught) {
+          const message = dataFetchErrorMessage('Loading trips', caught);
+          this.logQueryError('listMyTrips.retry', message);
+          return { data: [], error: message };
+        }
+      }
+    }
+
+    console.debug('[itinerary] listMyTrips end', { count: (data as Itinerary[] | null)?.length ?? 0, hasError: !!error });
     return { data: (data as Itinerary[]) ?? [], error: error?.message ?? null };
   }
 
   async search(params: SearchParams): Promise<{ data: Itinerary[]; error: string | null }> {
+    console.debug('[itinerary] search start', params);
     const originCode = this.normalizeAirportCode(params.originAirportCode);
     const destinationCode = this.normalizeAirportCode(params.destinationAirportCode);
     const stop1 = this.normalizeAirportCode(params.stop1AirportCode ?? '');
     const stop2 = this.normalizeAirportCode(params.stop2AirportCode ?? '');
 
-    const { data, error } = await supabase
+    const runQuery = () => supabase
       .from('public_itinerary_search')
       .select('*')
       .eq('origin_airport_code', originCode)
@@ -227,8 +266,36 @@ export class ItineraryService {
       .gte('end_date', params.searchStartDate)
       .limit(300);
 
-    if (error) this.logQueryError('search', error.message);
+    let data: any[] | null = null;
+    let error: { message: string } | null = null;
 
+    try {
+      const result = await this.withTimeout('itinerary.search', runQuery());
+      data = result.data as any[] | null;
+      error = result.error;
+    } catch (caught) {
+      const message = dataFetchErrorMessage('Search', caught);
+      this.logQueryError('search', message);
+      return { data: [], error: message };
+    }
+
+    if (error) {
+      this.logQueryError('search', error.message);
+      const recovered = await this.authService.recoverSessionForDataQuery('itinerary.search', error.message);
+      if (recovered) {
+        try {
+          const retry = await this.withTimeout('itinerary.search.retry', runQuery());
+          data = retry.data as any[] | null;
+          error = retry.error;
+        } catch (caught) {
+          const message = dataFetchErrorMessage('Search', caught);
+          this.logQueryError('search.retry', message);
+          return { data: [], error: message };
+        }
+      }
+    }
+
+    console.debug('[itinerary] search end', { count: (data as Itinerary[] | null)?.length ?? 0, hasError: !!error });
     if (error) return { data: [], error: error.message };
 
     const itineraries = ((data ?? []) as any[]).map((row) => ({ ...row, legs: (row.legs ?? []) as FlightLeg[] })) as Itinerary[];
@@ -255,16 +322,19 @@ export class ItineraryService {
   }
 
   async findById(id: string): Promise<{ data: Itinerary | null; error: string | null }> {
-    const header = await supabase.from('itineraries').select('*').eq('id', id).maybeSingle();
+    const header = await this.withTimeout('itinerary.findById.header', supabase.from('itineraries').select('*').eq('id', id).maybeSingle());
     if (header.error) this.logQueryError('findById.header', header.error.message);
     if (header.error) return { data: null, error: header.error.message };
     if (!header.data) return { data: null, error: null };
 
-    const legs = await supabase
-      .from('itinerary_legs')
-      .select('*')
-      .eq('itinerary_id', id)
-      .order('leg_order', { ascending: true });
+    const legs = await this.withTimeout(
+      'itinerary.findById.legs',
+      supabase
+        .from('itinerary_legs')
+        .select('*')
+        .eq('itinerary_id', id)
+        .order('leg_order', { ascending: true })
+    );
 
     if (legs.error) this.logQueryError('findById.legs', legs.error.message);
 
@@ -274,16 +344,25 @@ export class ItineraryService {
   }
 
   async deleteItinerary(itineraryId: string, ownerId: string): Promise<string | null> {
-    const contactDelete = await supabase.from('itinerary_contact_details').delete().eq('itinerary_id', itineraryId).eq('owner_id', ownerId);
+    const contactDelete = await this.withTimeout(
+      'itinerary.delete.contact',
+      supabase.from('itinerary_contact_details').delete().eq('itinerary_id', itineraryId).eq('owner_id', ownerId)
+    );
     if (contactDelete.error) return contactDelete.error.message;
 
-    const legsDelete = await supabase.from('itinerary_legs').delete().eq('itinerary_id', itineraryId);
+    const legsDelete = await this.withTimeout('itinerary.delete.legs', supabase.from('itinerary_legs').delete().eq('itinerary_id', itineraryId));
     if (legsDelete.error) return legsDelete.error.message;
 
-    const requestsDelete = await supabase.from('requests').delete().eq('itinerary_id', itineraryId).eq('owner_id', ownerId);
+    const requestsDelete = await this.withTimeout(
+      'itinerary.delete.requests',
+      supabase.from('requests').delete().eq('itinerary_id', itineraryId).eq('owner_id', ownerId)
+    );
     if (requestsDelete.error) return requestsDelete.error.message;
 
-    const itineraryDelete = await supabase.from('itineraries').delete().eq('id', itineraryId).eq('owner_id', ownerId);
+    const itineraryDelete = await this.withTimeout(
+      'itinerary.delete.itinerary',
+      supabase.from('itineraries').delete().eq('id', itineraryId).eq('owner_id', ownerId)
+    );
     return itineraryDelete.error?.message ?? null;
   }
 

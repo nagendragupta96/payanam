@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnDestroy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { RouterLink } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { Itinerary } from '../../models/itinerary.model';
 import { ItineraryService } from '../../services/itinerary.service';
@@ -18,6 +19,7 @@ import { RequestService } from '../../services/request.service';
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
         <button class="btn btn-outline-primary btn-sm mb-3" (click)="refresh()">Refresh</button>
+        <div *ngIf="loading" class="text-center py-2"><div class="spinner-border spinner-border-sm me-2"></div>Loading trips...</div>
 
         <div class="table-scroll-hint d-md-none">↔ Scroll sideways to see more columns</div>
         <div class="table-responsive has-scroll-hint" *ngIf="trips.length; else empty">
@@ -51,12 +53,13 @@ import { RequestService } from '../../services/request.service';
     </div>
   `
 })
-export class MyTripsComponent {
+export class MyTripsComponent implements OnDestroy {
   trips: Itinerary[] = [];
   errorMessage = '';
   infoMessage = '';
   loading = false;
   requestCounts: Record<string, number> = {};
+  private readonly subscriptions = new Subscription();
 
   constructor(
     private authService: AuthService,
@@ -64,9 +67,14 @@ export class MyTripsComponent {
     private requestService: RequestService,
     private route: ActivatedRoute
   ) {
-    this.route.queryParamMap.subscribe((params) => {
+    this.subscriptions.add(this.route.queryParamMap.subscribe((params) => {
       this.infoMessage = params.get('info') ?? this.infoMessage;
-    });
+    }));
+
+    this.subscriptions.add(this.authService.appForeground$.subscribe(() => {
+      console.debug('[my-trips] foreground event -> refreshing trips');
+      void this.load();
+    }));
 
     this.load();
   }
@@ -97,6 +105,11 @@ export class MyTripsComponent {
       this.requestCounts = countResult.counts;
       if (error) this.errorMessage = error;
       if (countResult.error) this.errorMessage = this.errorMessage || countResult.error;
+    } catch (error) {
+      console.error('[my-trips] load failed', error);
+      this.trips = [];
+      this.requestCounts = {};
+      this.errorMessage = 'Trips failed to load. Please try again.';
     } finally {
       this.loading = false;
     }
@@ -120,5 +133,9 @@ export class MyTripsComponent {
 
     this.infoMessage = 'Itinerary deleted successfully.';
     await this.load();
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.unsubscribe();
   }
 }

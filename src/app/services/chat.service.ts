@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { supabase } from './supabase-client';
+import { dataFetchErrorMessage, runSupabaseQuery, supabase } from './supabase-client';
 import { AuthService } from './auth.service';
 
 export interface ChatMessage {
@@ -21,7 +21,13 @@ export interface ChatThread {
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {
+  private readonly queryTimeoutMs = 12000;
+
   constructor(private authService: AuthService) {}
+
+  private runQuery<T>(operation: string, query: PromiseLike<T>): Promise<T> {
+    return runSupabaseQuery(`chat.${operation}`, query, this.queryTimeoutMs);
+  }
 
   isSafeMessage(message: string): { safe: boolean; reason?: string } {
     const emailPattern = /[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}/i;
@@ -37,11 +43,42 @@ export class ChatService {
   }
 
   async listThreadsForUser(userId: string): Promise<{ data: ChatThread[]; error: string | null }> {
-    const { data, error } = await supabase
+    console.debug('[chat-service] listThreadsForUser start', { userId });
+    const runQuery = () => supabase
       .from('chat_threads')
       .select('id, owner_id, requester_id, request_id, created_at, requests(request_type)')
       .or(`owner_id.eq.${userId},requester_id.eq.${userId}`)
       .order('created_at', { ascending: false });
+
+    let data: any[] | null = null;
+    let error: { message: string } | null = null;
+
+    try {
+      const result = await this.runQuery('listThreadsForUser', runQuery());
+      data = result.data as any[] | null;
+      error = result.error;
+    } catch (caught) {
+      const message = dataFetchErrorMessage('Loading conversations', caught);
+      this.handleAuthFailure('listThreadsForUser', message);
+      console.debug('[chat-service] listThreadsForUser end', { count: 0, hasError: true });
+      return { data: [], error: message };
+    }
+
+    if (error) {
+      this.handleAuthFailure('listThreadsForUser', error.message);
+      const recovered = await this.authService.recoverSessionForDataQuery('chat.listThreadsForUser', error.message);
+      if (recovered) {
+        try {
+          const retry = await this.runQuery('listThreadsForUser.retry', runQuery());
+          data = retry.data as any[] | null;
+          error = retry.error;
+        } catch (caught) {
+          const message = dataFetchErrorMessage('Loading conversations', caught);
+          this.handleAuthFailure('listThreadsForUser.retry', message);
+          return { data: [], error: message };
+        }
+      }
+    }
 
     const mapped = ((data ?? []) as any[]).map((row) => ({
       id: row.id,
@@ -53,15 +90,30 @@ export class ChatService {
     })) as ChatThread[];
 
     this.handleAuthFailure('listThreadsForUser', error?.message ?? '');
-    return { data: mapped, error: error?.message ?? null };
+    const result = { data: mapped, error: error?.message ?? null };
+    console.debug('[chat-service] listThreadsForUser end', { count: result.data.length, hasError: !!result.error });
+    return result;
   }
 
   async getThreadByRequest(requestId: string): Promise<{ data: ChatThread | null; error: string | null }> {
-    const { data, error } = await supabase
-      .from('chat_threads')
-      .select('id, owner_id, requester_id, request_id, created_at, requests(request_type)')
-      .eq('request_id', requestId)
-      .maybeSingle();
+    let data: any = null;
+    let error: { message: string } | null = null;
+    try {
+      const result = await this.runQuery(
+        'getThreadByRequest',
+        supabase
+          .from('chat_threads')
+          .select('id, owner_id, requester_id, request_id, created_at, requests(request_type)')
+          .eq('request_id', requestId)
+          .maybeSingle()
+      );
+      data = result.data;
+      error = result.error;
+    } catch (caught) {
+      const message = dataFetchErrorMessage('Loading conversation', caught);
+      this.handleAuthFailure('getThreadByRequest', message);
+      return { data: null, error: message };
+    }
 
     const mapped = data
       ? ({
@@ -79,24 +131,70 @@ export class ChatService {
   }
 
   async listMessages(threadId: string): Promise<{ data: ChatMessage[]; error: string | null }> {
-    const { data, error } = await supabase
+    console.debug('[chat-service] listMessages start', { threadId });
+    const runQuery = () => supabase
       .from('chat_messages')
       .select('id, thread_id, body, sender_id, created_at')
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true });
 
+    let data: any[] | null = null;
+    let error: { message: string } | null = null;
+
+    try {
+      const result = await this.runQuery('listMessages', runQuery());
+      data = result.data as any[] | null;
+      error = result.error;
+    } catch (caught) {
+      const message = dataFetchErrorMessage('Loading messages', caught);
+      this.handleAuthFailure('listMessages', message);
+      console.debug('[chat-service] listMessages end', { threadId, count: 0, hasError: true });
+      return { data: [], error: message };
+    }
+
+    if (error) {
+      this.handleAuthFailure('listMessages', error.message);
+      const recovered = await this.authService.recoverSessionForDataQuery('chat.listMessages', error.message);
+      if (recovered) {
+        try {
+          const retry = await this.runQuery('listMessages.retry', runQuery());
+          data = retry.data as any[] | null;
+          error = retry.error;
+        } catch (caught) {
+          const message = dataFetchErrorMessage('Loading messages', caught);
+          this.handleAuthFailure('listMessages.retry', message);
+          return { data: [], error: message };
+        }
+      }
+    }
+
     this.handleAuthFailure('listMessages', error?.message ?? '');
-    return { data: (data as ChatMessage[]) ?? [], error: error?.message ?? null };
+    const result = { data: (data as ChatMessage[]) ?? [], error: error?.message ?? null };
+    console.debug('[chat-service] listMessages end', { threadId, count: result.data.length, hasError: !!result.error });
+    return result;
   }
 
   async listLastMessagesByThread(threadIds: string[]): Promise<{ data: Record<string, ChatMessage>; error: string | null }> {
     if (!threadIds.length) return { data: {}, error: null };
 
-    const { data, error } = await supabase
-      .from('chat_messages')
-      .select('id, thread_id, body, sender_id, created_at')
-      .in('thread_id', threadIds)
-      .order('created_at', { ascending: false });
+    let data: any[] | null = null;
+    let error: { message: string } | null = null;
+    try {
+      const result = await this.runQuery(
+        'listLastMessagesByThread',
+        supabase
+          .from('chat_messages')
+          .select('id, thread_id, body, sender_id, created_at')
+          .in('thread_id', threadIds)
+          .order('created_at', { ascending: false })
+      );
+      data = result.data as any[] | null;
+      error = result.error;
+    } catch (caught) {
+      const message = dataFetchErrorMessage('Loading recent messages', caught);
+      this.handleAuthFailure('listLastMessagesByThread', message);
+      return { data: {}, error: message };
+    }
 
     if (error) {
       this.handleAuthFailure('listLastMessagesByThread', error.message);
@@ -116,11 +214,24 @@ export class ChatService {
     const safety = this.isSafeMessage(body);
     if (!safety.safe) return { data: null, error: safety.reason ?? 'Message blocked by safety policy.' };
 
-    const { data, error } = await supabase
-      .from('chat_messages')
-      .insert({ thread_id: threadId, sender_id: senderId, body })
-      .select('id, thread_id, body, sender_id, created_at')
-      .single();
+    let data: any = null;
+    let error: { message: string } | null = null;
+    try {
+      const result = await this.runQuery(
+        'sendMessage',
+        supabase
+          .from('chat_messages')
+          .insert({ thread_id: threadId, sender_id: senderId, body })
+          .select('id, thread_id, body, sender_id, created_at')
+          .single()
+      );
+      data = result.data;
+      error = result.error;
+    } catch (caught) {
+      const message = dataFetchErrorMessage('Sending message', caught);
+      this.handleAuthFailure('sendMessage', message);
+      return { data: null, error: message };
+    }
 
     this.handleAuthFailure('sendMessage', error?.message ?? '');
     return { data: (data as ChatMessage) ?? null, error: error?.message ?? null };
@@ -130,10 +241,22 @@ export class ChatService {
     const unique = [...new Set(userIds.filter(Boolean))];
     if (!unique.length) return {};
 
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, display_name')
-      .in('id', unique);
+    let data: any[] | null = null;
+    try {
+      const result = await this.runQuery(
+        'getProfileNames',
+        supabase
+          .from('profiles')
+          .select('id, display_name')
+          .in('id', unique)
+      );
+      data = result.data as any[] | null;
+    } catch (caught) {
+      console.error('[chat-service] getProfileNames failed', {
+        message: dataFetchErrorMessage('Loading profile names', caught)
+      });
+      return {};
+    }
 
     const result: Record<string, string> = {};
     for (const row of data ?? []) {
@@ -145,10 +268,11 @@ export class ChatService {
   }
 
   subscribeToThread(threadId: string, callback: (payload: any) => void) {
+    console.debug('[chat-service] realtime subscribe thread', { threadId });
     return supabase
       .channel(`thread:${threadId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` }, callback)
-      .subscribe();
+      .subscribe((status) => console.debug('[chat-service] realtime thread status', { threadId, status }));
   }
 
   private handleAuthFailure(operation: string, message: string): void {

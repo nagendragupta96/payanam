@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { supabase } from './supabase-client';
+import { runSupabaseQuery, supabase } from './supabase-client';
 import { AuthService } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
@@ -40,7 +40,7 @@ export class MessageNotificationService {
       if (!userId) {
         this.currentUserId = null;
         this.clearUnread();
-        this.unsubscribe();
+        this.unsubscribe('signed-out');
         return;
       }
 
@@ -50,7 +50,11 @@ export class MessageNotificationService {
 
       this.currentUserId = userId;
       this.clearUnread();
-      await this.subscribeForUser(userId);
+      try {
+        await this.subscribeForUser(userId);
+      } catch (error) {
+        this.log('subscribeForUser failed', { message: error instanceof Error ? error.message : String(error) });
+      }
       this.log('resetForSession complete', { userId });
     })();
 
@@ -62,7 +66,7 @@ export class MessageNotificationService {
   }
 
   private async subscribeForUser(userId: string) {
-    this.unsubscribe();
+    this.unsubscribe('resubscribe');
     this.log('subscribeForUser', { userId });
 
     await this.subscribeToMessages(userId);
@@ -75,19 +79,23 @@ export class MessageNotificationService {
         this.log('thread subscription triggered; refreshing message subscription', { userId });
         await this.subscribeToMessages(userId);
       })
-      .subscribe();
+      .subscribe((status) => this.log('thread subscription status', { userId, status }));
   }
 
   private async subscribeToMessages(userId: string) {
-    this.messageChannel?.unsubscribe();
-    this.messageChannel = null;
+    this.unsubscribeMessageChannel('refresh-message-subscription');
 
-    const { data, error } = await supabase
-      .from('chat_threads')
-      .select('id')
-      .or(`owner_id.eq.${userId},requester_id.eq.${userId}`);
+    const { data, error } = await runSupabaseQuery(
+      'message-notification.loadThreads',
+      supabase
+        .from('chat_threads')
+        .select('id')
+        .or(`owner_id.eq.${userId},requester_id.eq.${userId}`),
+      10000
+    );
 
     if (error || !data?.length) {
+      if (error) this.log('message subscription thread lookup failed', { message: error.message });
       return;
     }
 
@@ -103,20 +111,32 @@ export class MessageNotificationService {
         if (payload.new.sender_id === userId) return;
         this.unreadCountSubject.next(this.unreadCountSubject.value + 1);
       })
-      .subscribe();
+      .subscribe((status) => this.log('message subscription status', { userId, status }));
 
     this.log('message subscription created', { userId, threadCount: threadIds.length });
   }
 
-  private unsubscribe() {
+  private unsubscribe(reason: string) {
     this.log('unsubscribe channels', {
+      reason,
       hadMessageChannel: !!this.messageChannel,
       hadThreadChannel: !!this.threadChannel
     });
-    this.messageChannel?.unsubscribe();
-    this.threadChannel?.unsubscribe();
-    this.messageChannel = null;
+    this.unsubscribeMessageChannel(reason);
+    if (this.threadChannel) {
+      void this.threadChannel
+        .unsubscribe()
+        .then((status) => this.log('thread unsubscribe complete', { reason, status }));
+    }
     this.threadChannel = null;
+  }
+
+  private unsubscribeMessageChannel(reason: string): void {
+    if (!this.messageChannel) return;
+    void this.messageChannel
+      .unsubscribe()
+      .then((status) => this.log('message unsubscribe complete', { reason, status }));
+    this.messageChannel = null;
   }
 
   private log(message: string, meta?: unknown): void {

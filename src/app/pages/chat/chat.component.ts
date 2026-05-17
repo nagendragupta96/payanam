@@ -7,6 +7,7 @@ import { AuthService } from '../../services/auth.service';
 import { ChatMessage, ChatService, ChatThread } from '../../services/chat.service';
 import { MessageNotificationService } from '../../services/message-notification.service';
 import { supabase } from '../../services/supabase-client';
+import { Subscription } from 'rxjs';
 
 interface ThreadView extends ChatThread {
   otherUserId: string;
@@ -27,6 +28,7 @@ interface ThreadView extends ChatThread {
 
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
         <div class="alert alert-info" *ngIf="infoMessage">{{ infoMessage }}</div>
+        <div class="alert alert-secondary" *ngIf="loadingData">Loading conversations…</div>
 
         <div class="row g-3">
           <div class="col-lg-4">
@@ -116,9 +118,12 @@ export class ChatComponent implements OnDestroy {
   errorMessage = '';
   infoMessage = '';
   loadingSend = false;
+  loadingData = false;
 
   private messageChannel: RealtimeChannel | null = null;
   private threadChannel: RealtimeChannel | null = null;
+  private readonly subscriptions = new Subscription();
+  private initInFlight = false;
 
   form = this.fb.group({ content: ['', Validators.required] });
 
@@ -131,63 +136,79 @@ export class ChatComponent implements OnDestroy {
     private messageNotificationService: MessageNotificationService
   ) {
     this.currentUserId = this.authService.currentSession?.user.id ?? '';
+    this.subscriptions.add(this.authService.appForeground$.subscribe(() => {
+      console.debug('[chat] foreground event -> reloading threads/messages');
+      void this.init();
+    }));
     void this.init();
   }
 
   async init() {
+    if (this.initInFlight) return;
     const userId = this.authService.currentSession?.user.id;
     if (!userId) return;
+    this.currentUserId = userId;
+    this.initInFlight = true;
+    this.loadingData = true;
 
-    this.errorMessage = '';
-    this.infoMessage = '';
+    try {
+      this.errorMessage = '';
+      this.infoMessage = '';
 
-    const threadsResult = await this.chatService.listThreadsForUser(userId);
-    if (threadsResult.error) {
-      this.errorMessage = threadsResult.error;
-      return;
+      const threadsResult = await this.chatService.listThreadsForUser(userId);
+      if (threadsResult.error) {
+        this.errorMessage = threadsResult.error;
+        return;
+      }
+
+      const otherIds = threadsResult.data.map((t) => (t.owner_id === userId ? t.requester_id : t.owner_id));
+      this.senderLabels = await this.chatService.getProfileNames(otherIds);
+
+      const lastMessagesResult = await this.chatService.listLastMessagesByThread(threadsResult.data.map((t) => t.id));
+      const lastByThread = lastMessagesResult.data;
+
+      this.threadViews = threadsResult.data
+        .map((thread) => {
+          const otherUserId = thread.owner_id === userId ? thread.requester_id : thread.owner_id;
+          const otherUserLabel = this.senderLabels[otherUserId] || 'User';
+          return {
+            ...thread,
+            otherUserId,
+            otherUserLabel,
+            otherUserDisplay: `${otherUserLabel} (${this.formatRequestType(thread.request_type)})`,
+            lastMessage: lastByThread[thread.id],
+            unreadCount: 0
+          };
+        })
+        .sort((a, b) => {
+          const ad = a.lastMessage?.created_at || a.created_at || '';
+          const bd = b.lastMessage?.created_at || b.created_at || '';
+          return bd.localeCompare(ad);
+        });
+
+      const routeThreadId = this.route.snapshot.paramMap.get('threadId');
+      if (routeThreadId && this.threadViews.some((t) => t.id === routeThreadId)) {
+        await this.selectThread(routeThreadId, true);
+      } else if (this.threadViews.length) {
+        await this.selectThread(this.threadViews[0].id, true);
+      }
+
+      this.subscribeThreadListUpdates();
+    } catch (error) {
+      console.error('[chat] init failed', error);
+      this.errorMessage = 'Messages failed to load. Please try again.';
+    } finally {
+      this.initInFlight = false;
+      this.loadingData = false;
     }
-
-    const otherIds = threadsResult.data.map((t) => (t.owner_id === userId ? t.requester_id : t.owner_id));
-    this.senderLabels = await this.chatService.getProfileNames(otherIds);
-
-    const lastMessagesResult = await this.chatService.listLastMessagesByThread(threadsResult.data.map((t) => t.id));
-    const lastByThread = lastMessagesResult.data;
-
-    this.threadViews = threadsResult.data
-      .map((thread) => {
-        const otherUserId = thread.owner_id === userId ? thread.requester_id : thread.owner_id;
-        const otherUserLabel = this.senderLabels[otherUserId] || 'User';
-        return {
-          ...thread,
-          otherUserId,
-          otherUserLabel,
-          otherUserDisplay: `${otherUserLabel} (${this.formatRequestType(thread.request_type)})`,
-          lastMessage: lastByThread[thread.id],
-          unreadCount: 0
-        };
-      })
-      .sort((a, b) => {
-        const ad = a.lastMessage?.created_at || a.created_at || '';
-        const bd = b.lastMessage?.created_at || b.created_at || '';
-        return bd.localeCompare(ad);
-      });
-
-    const routeThreadId = this.route.snapshot.paramMap.get('threadId');
-    if (routeThreadId && this.threadViews.some((t) => t.id === routeThreadId)) {
-      await this.selectThread(routeThreadId);
-    } else if (this.threadViews.length) {
-      await this.selectThread(this.threadViews[0].id);
-    }
-
-    this.subscribeThreadListUpdates();
   }
 
   getSenderLabel(userId: string): string {
     return this.senderLabels[userId] || 'User';
   }
 
-  async selectThread(threadId: string) {
-    if (this.selectedThreadId === threadId) return;
+  async selectThread(threadId: string, forceReload = false) {
+    if (this.selectedThreadId === threadId && !forceReload) return;
 
     this.selectedThreadId = threadId;
     this.errorMessage = '';
@@ -208,7 +229,7 @@ export class ChatComponent implements OnDestroy {
     this.messages = history.data;
     await this.loadSenderLabelsFromMessages();
 
-    this.threadChannel?.unsubscribe();
+    this.destroyThreadChannel('selectThread');
     this.threadChannel = this.chatService.subscribeToThread(threadId, (payload: any) => {
       if (!payload?.new) return;
 
@@ -298,7 +319,8 @@ export class ChatComponent implements OnDestroy {
     if (!userId || !this.threadViews.length) return;
 
     const filter = `thread_id=in.(${this.threadViews.map((t) => t.id).join(',')})`;
-    this.messageChannel?.unsubscribe();
+    this.destroyMessageChannel('subscribeThreadListUpdates');
+    console.debug('[chat] realtime subscribe inbox', { userId, threadCount: this.threadViews.length });
     this.messageChannel = supabase
       .channel(`messages-inbox:${userId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter }, (payload: any) => {
@@ -314,11 +336,30 @@ export class ChatComponent implements OnDestroy {
         }
         this.reorderThreads();
       })
-      .subscribe();
+      .subscribe((status) => console.debug('[chat] realtime inbox status', { userId, status }));
   }
 
   ngOnDestroy() {
-    this.messageChannel?.unsubscribe();
-    this.threadChannel?.unsubscribe();
+    this.subscriptions.unsubscribe();
+    this.destroyMessageChannel('destroy');
+    this.destroyThreadChannel('destroy');
+  }
+
+  private destroyMessageChannel(reason: string): void {
+    if (!this.messageChannel) return;
+    console.debug('[chat] realtime unsubscribe inbox', { reason });
+    void this.messageChannel
+      .unsubscribe()
+      .then((status) => console.debug('[chat] realtime inbox unsubscribe complete', { reason, status }));
+    this.messageChannel = null;
+  }
+
+  private destroyThreadChannel(reason: string): void {
+    if (!this.threadChannel) return;
+    console.debug('[chat] realtime unsubscribe thread', { reason });
+    void this.threadChannel
+      .unsubscribe()
+      .then((status) => console.debug('[chat] realtime thread unsubscribe complete', { reason, status }));
+    this.threadChannel = null;
   }
 }
