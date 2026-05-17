@@ -52,11 +52,12 @@ async function safeAuthLock<T>(name: string, _acquireTimeout: number, fn: () => 
         ...(abortController ? { signal: abortController.signal } : {})
       } as LockOptions,
       async (lock) => {
-      if (!lock) {
-        throw makeLockTimeoutError(name, acquireTimeout);
-      }
+        if (!lock) {
+          console.debug('[supabase-lock] unavailable; using in-process lock fallback', { name, acquireTimeout });
+          return await runWithInProcessLock(name, fn);
+        }
 
-      return await fn();
+        return await fn();
       }
     );
     console.debug('[supabase-lock] acquire complete', { name });
@@ -69,7 +70,7 @@ async function safeAuthLock<T>(name: string, _acquireTimeout: number, fn: () => 
 
     if ((error as any)?.isAcquireTimeout) {
       console.warn('[supabase-lock] acquire unavailable', { name, acquireTimeout });
-      throw error;
+      return await runWithInProcessLock(name, fn);
     }
 
     console.warn('[supabase-lock] navigator lock failed; using in-process lock fallback', { name, error });
