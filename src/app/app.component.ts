@@ -4,7 +4,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from './services/auth.service';
 import { MessageNotificationService } from './services/message-notification.service';
 import { RequestNotificationService } from './services/request-notification.service';
-import { supabase } from './services/supabase-client';
+import { dataFetchErrorMessage, runSupabaseQuery, supabase } from './services/supabase-client';
 
 @Component({
   selector: 'app-root',
@@ -89,7 +89,7 @@ export class AppComponent implements OnDestroy {
   };
 
   private onWindowFocus = () => {
-    this.log('window focus -> lightweight foreground validation');
+    this.log('window focus -> foreground validation');
     void this.runForegroundValidation();
   };
 
@@ -174,17 +174,25 @@ export class AppComponent implements OnDestroy {
     const metadataAvatar = (user.user_metadata?.['avatar_url'] || user.user_metadata?.['picture'] || '').toString().trim();
     this.profileAvatarUrl = metadataAvatar || this.defaultAvatarUrl;
 
-    const { data } = await supabase
-      .from('profiles')
-      .select('avatar_url')
-      .eq('id', user.id)
-      .maybeSingle();
+    try {
+      const { data } = await runSupabaseQuery(
+        'app.loadProfileAvatar',
+        supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', user.id)
+          .maybeSingle(),
+        8000
+      );
 
-    const dbAvatar = (data?.avatar_url || '').toString().trim();
-    if (dbAvatar) {
-      this.profileAvatarUrl = dbAvatar;
-    } else if (!metadataAvatar) {
-      this.profileAvatarUrl = this.defaultAvatarUrl;
+      const dbAvatar = (data?.avatar_url || '').toString().trim();
+      if (dbAvatar) {
+        this.profileAvatarUrl = dbAvatar;
+      } else if (!metadataAvatar) {
+        this.profileAvatarUrl = this.defaultAvatarUrl;
+      }
+    } catch (error) {
+      this.log('loadProfileAvatar failed', { message: dataFetchErrorMessage('Loading avatar', error) });
     }
   }
 

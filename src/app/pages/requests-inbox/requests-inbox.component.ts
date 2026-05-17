@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnDestroy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { ChatService } from '../../services/chat.service';
 import { RequestRecord, RequestService } from '../../services/request.service';
@@ -22,6 +23,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
 
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
+        <div class="alert alert-secondary py-2" *ngIf="loading">Loading requests...</div>
 
         <h3 class="h6">Incoming</h3>
         <div class="table-scroll-hint d-md-none">↔ Scroll sideways to view full request details</div>
@@ -88,7 +90,7 @@ import { RequestRecord, RequestService } from '../../services/request.service';
     </div>
   `
 })
-export class RequestsInboxComponent {
+export class RequestsInboxComponent implements OnDestroy {
   incoming: RequestRecord[] = [];
   outgoing: RequestRecord[] = [];
   loading = false;
@@ -96,6 +98,7 @@ export class RequestsInboxComponent {
   rejectingId = '';
   errorMessage = '';
   infoMessage = '';
+  private readonly subscriptions = new Subscription();
 
   private labels: Record<string, string> = {};
 
@@ -106,9 +109,14 @@ export class RequestsInboxComponent {
     private route: ActivatedRoute,
     private router: Router
   ) {
-    this.route.queryParamMap.subscribe((params) => {
+    this.subscriptions.add(this.route.queryParamMap.subscribe((params) => {
       this.infoMessage = params.get('info') ?? '';
-    });
+    }));
+
+    this.subscriptions.add(this.authService.appForeground$.subscribe(() => {
+      console.debug('[requests] foreground event -> refreshing inbox');
+      void this.load();
+    }));
 
     void this.load();
   }
@@ -154,6 +162,11 @@ export class RequestsInboxComponent {
       }
 
       if (data.error) this.errorMessage = data.error;
+    } catch (error) {
+      console.error('[requests] load failed', error);
+      this.incoming = [];
+      this.outgoing = [];
+      this.errorMessage = 'Requests failed to load. Please try again.';
     } finally {
       this.loading = false;
     }
@@ -178,6 +191,9 @@ export class RequestsInboxComponent {
       if (threadId) {
         await this.router.navigate(['/messages', threadId]);
       }
+    } catch (error) {
+      console.error('[requests] accept failed', error);
+      this.errorMessage = 'Unable to accept request. Please try again.';
     } finally {
       this.acceptingId = '';
     }
@@ -201,18 +217,26 @@ export class RequestsInboxComponent {
 
       this.infoMessage = 'Request rejected.';
       await this.load();
+    } catch (error) {
+      console.error('[requests] reject failed', error);
+      this.errorMessage = 'Unable to reject request. Please try again.';
     } finally {
       this.rejectingId = '';
     }
   }
 
   async openMessages(requestId: string) {
-    const thread = await this.chatService.getThreadByRequest(requestId);
-    if (thread.error || !thread.data?.id) {
-      this.errorMessage = thread.error ?? 'No chat thread found.';
-      return;
+    try {
+      const thread = await this.chatService.getThreadByRequest(requestId);
+      if (thread.error || !thread.data?.id) {
+        this.errorMessage = thread.error ?? 'No chat thread found.';
+        return;
+      }
+      await this.router.navigate(['/messages', thread.data.id]);
+    } catch (error) {
+      console.error('[requests] openMessages failed', error);
+      this.errorMessage = 'Unable to open messages. Please try again.';
     }
-    await this.router.navigate(['/messages', thread.data.id]);
   }
 
   async openRequest(requestId: string) {
@@ -221,5 +245,9 @@ export class RequestsInboxComponent {
 
   private findRequestType(requestId: string): RequestRecord['request_type'] | null {
     return this.incoming.find((req) => req.id === requestId)?.request_type ?? null;
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.unsubscribe();
   }
 }
