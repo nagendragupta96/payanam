@@ -1,11 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
+import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   template: `
     <div class="card shadow-sm">
       <div class="card-body">
@@ -14,11 +15,7 @@ import { AuthService } from '../../services/auth.service';
         <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
         <div class="alert alert-success" *ngIf="infoMessage">{{ infoMessage }}</div>
 
-        <p class="mb-2">Subscription management placeholder for future Stripe/Supabase billing integration.</p>
-        <ul class="mb-4">
-          <li>Free plan: basic search and requests</li>
-          <li>Plus plan: priority matching and advanced filters</li>
-        </ul>
+        <a routerLink="/subscription" class="btn btn-outline-primary mb-4">Manage subscription</a>
 
         <div class="border rounded p-3 bg-light">
           <h3 class="h6 text-danger">Danger Zone</h3>

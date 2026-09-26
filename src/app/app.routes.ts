@@ -12,6 +12,8 @@ import { SettingsComponent } from './pages/settings/settings.component';
 import { MyTripsComponent } from './pages/my-trips/my-trips.component';
 import { RequestDetailComponent } from './pages/request-detail/request-detail.component';
 import { NotificationsComponent } from './pages/notifications/notifications.component';
+import { SubscriptionComponent } from './pages/subscription/subscription.component';
+import { CheckoutComponent } from './pages/subscription/checkout.component';
 
 export const routes: Routes = [
   { path: '', component: LandingComponent },
@@ -30,5 +32,7 @@ export const routes: Routes = [
   { path: 'chat/:threadId', component: ChatComponent, canActivate: [authGuard] },
   { path: 'notifications', component: NotificationsComponent, canActivate: [authGuard] },
   { path: 'settings', component: SettingsComponent, canActivate: [authGuard] },
+  { path: 'subscription', component: SubscriptionComponent, canActivate: [authGuard] },
+  { path: 'subscription/checkout/:id', component: CheckoutComponent, canActivate: [authGuard] },
   { path: '**', redirectTo: '' }
 ];

@@ -69,6 +69,9 @@ async function setup() {
   await db.exec(upgrade);
   await db.exec(upgrade); // Reapplying must not duplicate the activation trigger.
   assert.deepEqual((await db.query('select * from public.subscriptions')).rows, beforeMigration);
+  const checkoutMigration = await migration('014_subscription_checkout.sql');
+  await db.exec(checkoutMigration);
+  await db.exec(checkoutMigration);
   if (planColumn === 'plan') {
     const { rows } = await db.query(`select column_name from information_schema.columns
       where table_schema = 'public' and table_name = 'subscriptions' and column_name = 'plan_code'`);
@@ -251,4 +254,109 @@ test('unrelated subscription updates do not rescan matching trips', async () => 
   await db.exec('delete from public.notifications');
   await db.query('update public.subscriptions set updated_at = now() where user_id = $1', [user]);
   assert.equal(await count(), 0);
+});
+
+async function signIn(id = user) {
+  await db.query("select set_config('request.jwt.claim.sub', $1, true)", [id]);
+  await db.exec('set local role authenticated');
+}
+const startCheckout = async () => (await db.query('select * from public.create_subscription_checkout()')).rows[0];
+const finishCheckout = async id => (await db.query('select * from public.complete_mock_subscription_checkout($1)', [id])).rows[0];
+const overview = async () => (await db.query('select public.get_my_subscription() as subscription')).rows[0].subscription;
+async function denied(sql, params, pattern) {
+  await db.exec('savepoint denied');
+  await assert.rejects(db.query(sql, params), pattern);
+  await db.exec('rollback to savepoint denied');
+}
+
+test('mock checkout activates Premium, backfills matches, and is idempotent', async () => {
+  await signIn();
+  assert.equal((await overview()).is_premium, false);
+  const checkout = await startCheckout();
+  assert.equal(checkout.provider, 'mock');
+  assert.equal((await startCheckout()).id, checkout.id);
+  assert.equal((await overview()).is_premium, false);
+  const completed = await finishCheckout(checkout.id);
+  assert.equal(completed.status, 'COMPLETED');
+  assert.equal((await overview()).is_premium, true);
+  assert.equal(await count(), 1);
+  assert.deepEqual(await finishCheckout(checkout.id), completed);
+  assert.equal(await count(), 1);
+  await denied('select public.create_subscription_checkout()', [], /already active/);
+});
+
+test('checkout provisions a subscription when signup had no compatible subscription row', async () => {
+  await db.query('delete from public.subscriptions where user_id = $1', [user]);
+  await signIn();
+  const checkout = await startCheckout();
+  await finishCheckout(checkout.id);
+  assert.equal((await overview()).plan_code, 'PREMIUM');
+  assert.equal(await count(), 1);
+});
+
+test('another user cannot inspect or complete a checkout', async () => {
+  await signIn();
+  const checkout = await startCheckout();
+  await signIn(other);
+  assert.equal((await db.query('select * from public.subscription_checkouts')).rows.length, 0);
+  await denied('select public.complete_mock_subscription_checkout($1)', [checkout.id], /Checkout not found/);
+  await denied('select public.cancel_subscription_checkout($1)', [checkout.id], /Checkout not found/);
+  assert.equal((await overview()).is_premium, false);
+});
+
+test('clients cannot bypass fulfillment or change checkout/settings rows', async () => {
+  await signIn();
+  const checkout = await startCheckout();
+  await denied('select public.fulfill_subscription_checkout($1, $2, $3)', [checkout.id, 'mock', 'fake'], /permission denied/);
+  await denied("update public.subscription_checkouts set status = 'COMPLETED' where id = $1", [checkout.id], /permission denied/);
+  await denied("insert into public.subscription_checkouts (user_id, plan_code, provider) values ($1, 'PREMIUM', 'mock')", [user], /permission denied/);
+  await denied('update public.subscription_billing_settings set mock_enabled = true', [], /permission denied/);
+});
+
+test('cancelled and expired checkouts do not activate Premium', async () => {
+  await signIn();
+  const checkout = await startCheckout();
+  await db.query('select public.cancel_subscription_checkout($1)', [checkout.id]);
+  await denied('select public.complete_mock_subscription_checkout($1)', [checkout.id], /cancelled/);
+  const next = await startCheckout();
+  assert.notEqual(next.id, checkout.id);
+  await db.exec('reset role');
+  await db.query("update public.subscription_checkouts set expires_at = now() - interval '1 minute' where id = $1", [next.id]);
+  await signIn();
+  await denied('select public.complete_mock_subscription_checkout($1)', [next.id], /expired/);
+  assert.equal((await overview()).is_premium, false);
+  assert.notEqual((await startCheckout()).id, next.id);
+});
+
+test('server switch disables mock checkout including already pending sessions', async () => {
+  await signIn();
+  const checkout = await startCheckout();
+  await db.exec('reset role; update public.subscription_billing_settings set mock_enabled = false');
+  await signIn();
+  assert.equal((await overview()).mock_enabled, false);
+  await denied('select public.create_subscription_checkout()', [], /unavailable/);
+  await denied('select public.complete_mock_subscription_checkout($1)', [checkout.id], /unavailable/);
+  assert.equal((await overview()).is_premium, false);
+});
+
+test('a failed subscription write leaves checkout pending for a safe retry', async () => {
+  await db.exec(`create function public.reject_checkout_activation() returns trigger language plpgsql as
+    $$ begin raise exception 'Simulated activation failure'; end $$;
+    create trigger reject_checkout_activation before update on public.subscriptions
+      for each row execute function public.reject_checkout_activation();`);
+  await signIn();
+  const checkout = await startCheckout();
+  await denied('select public.complete_mock_subscription_checkout($1)', [checkout.id], /Simulated activation failure/);
+  assert.equal((await db.query('select status from public.subscription_checkouts where id = $1', [checkout.id])).rows[0].status, 'PENDING');
+  assert.equal((await overview()).is_premium, false);
+  await db.exec('reset role; drop trigger reject_checkout_activation on public.subscriptions');
+  await signIn();
+  assert.equal((await finishCheckout(checkout.id)).status, 'COMPLETED');
+});
+
+test('anonymous callers cannot start or complete checkout', async () => {
+  await db.exec('set local role anon');
+  await denied('select public.get_my_subscription()', [], /permission denied/);
+  await denied('select public.create_subscription_checkout()', [], /permission denied/);
+  await denied('select public.complete_mock_subscription_checkout($1)', [ownTrip], /permission denied/);
 });
