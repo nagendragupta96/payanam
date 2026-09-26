@@ -66,3 +66,51 @@ npx wrangler pages deploy dist/travel-companion/browser
 ## 7) Optional match-notification edge function
 After trip save, frontend may invoke `trip-match-notify` as a non-blocking call.
 If not deployed, trip save still succeeds and UI shows a warning only.
+
+## 8) Premium upgrade notifications
+
+Apply `supabase/012_auto_match_notifications.sql`, then
+`supabase/013_premium_upgrade_match_notifications.sql` after the existing schema
+migrations. These in-app notifications do not require the optional email edge
+function above. Deploying Angular alone does not apply database migrations.
+
+When trusted backend code inserts an active paid subscription, upgrades FREE to
+an active paid plan, or reactivates an inactive paid subscription, a database
+trigger finds existing matching trips for that user's saved itineraries. It uses
+the same route and optional connection rules as new-trip alerts, with overlapping
+dates today or later. No saved itinerary means there are no criteria to match.
+Existing notifications, including their read state, are preserved on retries.
+Normal active-to-active subscription updates do not repeat the scan.
+
+Payment activation must be written only after payment verification by a trusted
+backend using the Supabase service role. Migration 013 removes browser clients'
+ability to change subscription plans and limits self-service inserts to FREE.
+Never put a service-role key in Angular. There is no payment integration in this
+repository yet; the trigger runs whenever that backend updates `subscriptions`.
+
+The backfill runs inside the subscription transaction. Ordinary notification
+errors are caught and logged as PostgreSQL warnings so activation still commits;
+this is not a background job, and matching adds database execution time to the
+activation. The existing fire-and-forget trip-save notification path is unchanged.
+There is no automatic retry worker. After a warning, trusted backend code can
+retry for the affected user using:
+
+```sql
+select public.backfill_premium_match_notifications('<user-uuid>'::uuid);
+```
+
+An authenticated client may also retry only its own matches via the no-argument
+RPC `create_premium_backfill_notifications`. Both paths recheck the subscription
+and use the existing unique AUTO_MATCH index to prevent duplicate alerts.
+The same trusted-backend function can populate matches for subscribers whose
+activation happened before this migration. Applying the migration itself does
+not scan all existing subscribers.
+
+Created rows appear through the existing notification badge/realtime channel and
+Notifications page. The page also retrieves them on navigation or refresh, so
+the user does not have to be online at activation time.
+
+Run local PostgreSQL regression tests with `npm run test:notifications`. The
+tests use an isolated PGlite database, execute the notification migrations, and
+cover activation, matching, duplicate prevention, access rules, and failure
+isolation without accessing production accounts.
