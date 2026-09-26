@@ -1,13 +1,35 @@
 -- Backfill existing matching trips when a subscription becomes Premium.
 begin;
 
+-- Existing databases use plan; migration 004 creates plan_code on new installs.
+-- Prefer plan when present, even if NULL, so stale alternate values cannot grant access.
+create or replace function public.notification_subscription_plan(p_subscription jsonb)
+returns text
+language sql
+immutable
+strict
+set search_path = ''
+as $$
+  select upper(nullif(btrim(
+    case when p_subscription ? 'plan' then p_subscription ->> 'plan'
+         else p_subscription ->> 'plan_code' end
+  ), ''));
+$$;
+
+revoke all on function public.notification_subscription_plan(jsonb) from public, anon;
+grant execute on function public.notification_subscription_plan(jsonb) to authenticated, service_role;
+
 -- Only trusted billing/admin code may grant paid entitlements. Signup still
 -- provisions FREE subscriptions through its existing security-definer trigger.
 drop policy if exists subscriptions_update_own on public.subscriptions;
 drop policy if exists subscriptions_insert_own on public.subscriptions;
 create policy subscriptions_insert_own
 on public.subscriptions for insert to authenticated
-with check (user_id = auth.uid() and plan_code = 'FREE' and status = 'ACTIVE');
+with check (
+  user_id = auth.uid()
+  and public.notification_subscription_plan(to_jsonb(subscriptions)) = 'FREE'
+  and status = 'ACTIVE'
+);
 
 create index if not exists itineraries_owner_match_idx
 on public.itineraries (owner_id);
@@ -26,7 +48,7 @@ begin
   perform 1 from public.subscriptions s
   where s.user_id = p_user_id
     and upper(s.status) = 'ACTIVE'
-    and upper(s.plan_code) <> 'FREE'
+    and public.notification_subscription_plan(to_jsonb(s)) <> 'FREE'
   for share;
   if not found then
     return 0;
@@ -121,11 +143,13 @@ security definer
 set search_path = ''
 as $$
 begin
-  if upper(new.status) <> 'ACTIVE' or upper(new.plan_code) = 'FREE' then
+  if (upper(new.status) = 'ACTIVE'
+      and public.notification_subscription_plan(to_jsonb(new)) <> 'FREE') is not true then
     return new;
   end if;
   if tg_op = 'UPDATE' then
-    if upper(old.status) = 'ACTIVE' and upper(old.plan_code) <> 'FREE' then
+    if upper(old.status) = 'ACTIVE'
+       and public.notification_subscription_plan(to_jsonb(old)) <> 'FREE' then
       return new;
     end if;
   end if;
@@ -144,7 +168,9 @@ $$;
 revoke all on function public.notify_on_premium_activation() from public, anon, authenticated;
 drop trigger if exists on_premium_subscription_activation on public.subscriptions;
 create trigger on_premium_subscription_activation
-after insert or update of plan_code, status on public.subscriptions
+-- A whole-row trigger supports either plan column. The function exits before
+-- matching when an update does not activate a paid subscription.
+after insert or update on public.subscriptions
 for each row execute function public.notify_on_premium_activation();
 
 commit;

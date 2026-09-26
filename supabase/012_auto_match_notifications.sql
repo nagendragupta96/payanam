@@ -73,6 +73,24 @@ for insert
 to authenticated
 with check (user_id = auth.uid());
 
+-- Existing databases use plan; migration 004 creates plan_code on new installs.
+-- Prefer plan when present, even if NULL, so stale alternate values cannot grant access.
+create or replace function public.notification_subscription_plan(p_subscription jsonb)
+returns text
+language sql
+immutable
+strict
+set search_path = ''
+as $$
+  select upper(nullif(btrim(
+    case when p_subscription ? 'plan' then p_subscription ->> 'plan'
+         else p_subscription ->> 'plan_code' end
+  ), ''));
+$$;
+
+revoke all on function public.notification_subscription_plan(jsonb) from public, anon;
+grant execute on function public.notification_subscription_plan(jsonb) to authenticated, service_role;
+
 create or replace function public.create_auto_match_notifications(p_itinerary_id uuid)
 returns integer
 language plpgsql
@@ -109,7 +127,7 @@ begin
       on s.user_id = existing.owner_id
     where existing.owner_id <> v_itinerary.owner_id
       and upper(s.status) = 'ACTIVE'
-      and upper(s.plan_code) <> 'FREE'
+      and public.notification_subscription_plan(to_jsonb(s)) <> 'FREE'
       and upper(coalesce(existing.origin_airport_code, existing.origin_airport)) = v_itinerary.origin_airport_code
       and upper(coalesce(existing.destination_airport_code, existing.destination_airport)) = v_itinerary.destination_airport_code
       and coalesce(existing.start_date, existing.depart_date) <= v_itinerary.end_date

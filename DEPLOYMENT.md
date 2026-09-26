@@ -74,6 +74,18 @@ Apply `supabase/012_auto_match_notifications.sql`, then
 migrations. These in-app notifications do not require the optional email edge
 function above. Deploying Angular alone does not apply database migrations.
 
+If migration 013 failed with `column "plan_code" does not exist`, rerun the
+updated **012 first, then 013**, in the SQL editor. Both scripts are repeatable
+and preserve existing subscription and notification rows. Rerunning 012 also
+repairs the new-trip notification RPC; rerunning only 013 fixes upgrade matching
+but leaves an older new-trip RPC incompatible with `plan`.
+
+Both `subscriptions.plan` (existing databases) and `subscriptions.plan_code`
+(migration 004's new-table schema) are supported. No columns are renamed or added,
+and existing plan values and billing-period fields are not rewritten. If both
+plan columns exist, `plan` is authoritative; NULL or blank plans do not qualify
+for Premium. Billing-period eligibility rules are unchanged.
+
 When trusted backend code inserts an active paid subscription, upgrades FREE to
 an active paid plan, or reactivates an inactive paid subscription, a database
 trigger finds existing matching trips for that user's saved itineraries. It uses
@@ -113,4 +125,7 @@ the user does not have to be online at activation time.
 Run local PostgreSQL regression tests with `npm run test:notifications`. The
 tests use an isolated PGlite database, execute the notification migrations, and
 cover activation, matching, duplicate prevention, access rules, and failure
-isolation without accessing production accounts.
+isolation without accessing production accounts. The same tests run against
+both the `plan_code` schema and the reported `plan` schema with its UUID primary
+key and billing-period columns. They also verify new-trip notifications and
+that rerunning migration 013 preserves existing subscription records.
