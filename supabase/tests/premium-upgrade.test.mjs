@@ -4,13 +4,14 @@ import { after, afterEach, beforeEach, test } from 'node:test';
 import { PGlite } from '@electric-sql/pglite';
 
 const db = new PGlite();
+const planColumn = process.env.PAYANAM_TEST_SUBSCRIPTION_SCHEMA === 'plan' ? 'plan' : 'plan_code';
 const user = '10000000-0000-0000-0000-000000000001';
 const other = '10000000-0000-0000-0000-000000000002';
 const ownTrip = '20000000-0000-0000-0000-000000000001';
 const match = '20000000-0000-0000-0000-000000000002';
 const migration = async (name) => readFile(new URL(`../${name}`, import.meta.url), 'utf8');
 const count = async () => Number((await db.query('select count(*) from public.notifications')).rows[0].count);
-const activate = () => db.query("update public.subscriptions set plan_code = 'PREMIUM', status = 'ACTIVE' where user_id = $1", [user]);
+const activate = () => db.query(`update public.subscriptions set ${planColumn} = 'PREMIUM', status = 'ACTIVE' where user_id = $1`, [user]);
 const retry = () => db.query('select public.backfill_premium_match_notifications($1) as count', [user]);
 
 async function setup() {
@@ -37,14 +38,42 @@ async function setup() {
       origin_airport_code text, destination_airport_code text
     );
   `);
+  if (planColumn === 'plan') {
+    // Production has an id primary key and billing periods, not plan_code.
+    // Do not assume an unreported unique constraint on user_id.
+    await db.exec(`
+      create table public.subscriptions (
+        id uuid primary key default gen_random_uuid(),
+        user_id uuid references auth.users(id), plan text,
+        status text default 'ACTIVE', period_start timestamptz, period_end timestamptz,
+        created_at timestamptz default now(), updated_at timestamptz default now()
+      );
+    `);
+  }
   await db.exec(await migration('004_signup_atomic_profile_subscription.sql'));
+  await db.exec(await migration('005_harden_signup_trigger_runtime.sql'));
   // PGlite provides core gen_random_uuid(), but does not bundle pgcrypto.
   const notifications = await migration('012_auto_match_notifications.sql');
   assert.ok(notifications.includes('create extension if not exists pgcrypto;'));
   await db.exec(notifications.replace('create extension if not exists pgcrypto;', ''));
+  const existingUser = '10000000-0000-0000-0000-000000000003';
+  await db.query('insert into auth.users (id) values ($1)', [existingUser]);
+  if (planColumn === 'plan') {
+    await db.query(`insert into public.subscriptions (user_id, plan, period_start, period_end)
+      values ($1, 'PREMIUM', now() - interval '1 day', now() + interval '30 days')`, [existingUser]);
+  } else {
+    await db.query("update public.subscriptions set plan_code = 'PREMIUM' where user_id = $1", [existingUser]);
+  }
+  const beforeMigration = (await db.query('select * from public.subscriptions')).rows;
   const upgrade = await migration('013_premium_upgrade_match_notifications.sql');
   await db.exec(upgrade);
   await db.exec(upgrade); // Reapplying must not duplicate the activation trigger.
+  assert.deepEqual((await db.query('select * from public.subscriptions')).rows, beforeMigration);
+  if (planColumn === 'plan') {
+    const { rows } = await db.query(`select column_name from information_schema.columns
+      where table_schema = 'public' and table_name = 'subscriptions' and column_name = 'plan_code'`);
+    assert.equal(rows.length, 0, 'Compatibility must not add a second source of plan data');
+  }
   await db.exec(`
     grant usage on schema public, auth to anon, authenticated, service_role;
     grant select, insert, update, delete on public.subscriptions to authenticated, service_role;
@@ -59,6 +88,11 @@ await setup();
 beforeEach(async () => {
   await db.exec('begin');
   await db.query('insert into auth.users (id) values ($1), ($2)', [user, other]);
+  if (planColumn === 'plan') {
+    // Production provisioning is external; migration 005 skips its incompatible
+    // optional subscription insert. Seed the existing records explicitly.
+    await db.query("insert into public.subscriptions (user_id, plan) values ($1, 'FREE'), ($2, 'FREE')", [user, other]);
+  }
   await db.query(`
     insert into public.itineraries
       (id, owner_id, origin_airport_code, destination_airport_code, start_date, end_date)
@@ -78,13 +112,13 @@ test('FREE receives nothing; upgrade backfills a boundary-overlapping existing t
 });
 
 test('pending payment creates nothing; activation and direct paid inserts trigger matching', async () => {
-  await db.query("update public.subscriptions set plan_code = 'PREMIUM', status = 'PENDING' where user_id = $1", [user]);
+  await db.query(`update public.subscriptions set ${planColumn} = 'PREMIUM', status = 'PENDING' where user_id = $1`, [user]);
   assert.equal(await count(), 0);
   await activate();
   assert.equal(await count(), 1);
   await db.exec('delete from public.notifications');
   await db.query('delete from public.subscriptions where user_id = $1', [user]);
-  await db.query("insert into public.subscriptions (user_id, plan_code, status) values ($1, 'premium', 'active')", [user]);
+  await db.query(`insert into public.subscriptions (user_id, ${planColumn}, status) values ($1, 'premium', 'active')`, [user]);
   assert.equal(await count(), 1);
 });
 
@@ -153,7 +187,7 @@ test('notification insert errors do not undo activation; a later retry succeeds'
       for each row execute function public.reject_test_notification();`);
   await activate();
   assert.equal(await count(), 0);
-  assert.equal((await db.query('select plan_code from public.subscriptions where user_id = $1', [user])).rows[0].plan_code, 'PREMIUM');
+  assert.equal((await db.query(`select ${planColumn} as plan from public.subscriptions where user_id = $1`, [user])).rows[0].plan, 'PREMIUM');
   await db.exec('drop trigger reject_test_notification on public.notifications');
   assert.equal((await retry()).rows[0].count, 1);
 });
@@ -178,11 +212,43 @@ test('browser clients cannot upgrade their subscription or insert a paid entitle
   await db.query("select set_config('request.jwt.claim.sub', $1, true)", [user]);
   await db.exec('set local role authenticated');
   await activate();
-  assert.equal((await db.query('select plan_code from public.subscriptions where user_id = $1', [user])).rows[0].plan_code, 'FREE');
+  assert.equal((await db.query(`select ${planColumn} as plan from public.subscriptions where user_id = $1`, [user])).rows[0].plan, 'FREE');
   await db.exec('reset role');
   await db.query('delete from public.subscriptions where user_id = $1', [user]);
   await db.exec('set local role authenticated; savepoint denied_insert');
-  await assert.rejects(db.query("insert into public.subscriptions (user_id, plan_code) values ($1, 'PREMIUM')", [user]), /row-level security/);
+  await assert.rejects(db.query(`insert into public.subscriptions (user_id, ${planColumn}) values ($1, 'PREMIUM')`, [user]), /row-level security/);
   await db.exec('rollback to savepoint denied_insert');
-  await db.query("insert into public.subscriptions (user_id, plan_code) values ($1, 'FREE')", [user]);
+  await db.query(`insert into public.subscriptions (user_id, ${planColumn}) values ($1, 'FREE')`, [user]);
+});
+
+test('new-trip notifications also support the subscription schema and reject free users', async () => {
+  await db.query("select set_config('request.jwt.claim.sub', $1, true)", [other]);
+  const notify = () => db.query('select public.create_auto_match_notifications($1) as count', [match]);
+  assert.equal((await notify()).rows[0].count, 0);
+  await activate();
+  await db.exec('delete from public.notifications');
+  assert.equal((await notify()).rows[0].count, 1);
+  assert.equal((await notify()).rows[0].count, 0);
+  assert.equal(await count(), 1);
+});
+
+test('blank and missing plans do not qualify as Premium', async () => {
+  await db.query(`update public.subscriptions set ${planColumn} = '  ' where user_id = $1`, [user]);
+  assert.equal((await retry()).rows[0].count, 0);
+  await db.query("select set_config('request.jwt.claim.sub', $1, true)", [other]);
+  assert.equal((await db.query('select public.create_auto_match_notifications($1) as count', [match])).rows[0].count, 0);
+  for (const subscription of [{}, { plan: null }, { plan: '' }, { plan: null, plan_code: 'PREMIUM' }]) {
+    assert.equal((await db.query('select public.notification_subscription_plan($1::jsonb) as plan',
+      [JSON.stringify(subscription)])).rows[0].plan, null);
+  }
+  assert.equal((await db.query('select public.notification_subscription_plan($1::jsonb) as plan',
+    [JSON.stringify({ plan: ' free ', plan_code: 'PREMIUM' })])).rows[0].plan, 'FREE');
+  assert.equal(await count(), 0);
+});
+
+test('unrelated subscription updates do not rescan matching trips', async () => {
+  await activate();
+  await db.exec('delete from public.notifications');
+  await db.query('update public.subscriptions set updated_at = now() where user_id = $1', [user]);
+  assert.equal(await count(), 0);
 });
