@@ -1,5 +1,5 @@
 <div class="app-shell min-vh-100">
-  <nav class="navbar navbar-expand-lg bg-white border-bottom shadow-sm sticky-top">
+  <nav class="navbar navbar-expand-xxl bg-white border-bottom shadow-sm sticky-top">
     <div class="container">
       <a routerLink="/home" class="navbar-brand fw-semibold d-flex align-items-center gap-2" (click)="closeNav()">
         <span class="brand-icon" aria-hidden="true">✈️</span>
@@ -39,6 +39,7 @@
                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger menu-count-badge">{{ notificationService.unreadCount }}</span>
               }
             </a>
+            <a routerLink="/subscription" routerLinkActive="active" class="nav-link px-3" (click)="closeNav()">Subscription</a>
             <a routerLink="/profile" routerLinkActive="active" class="nav-link px-3 d-inline-flex align-items-center gap-2 nav-profile-link" (click)="closeNav()">
               <img class="nav-avatar" [src]="profileAvatarUrl" alt="Profile avatar" (error)="onAvatarError()" />
               <span>Profile</span>

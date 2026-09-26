@@ -129,3 +129,55 @@ isolation without accessing production accounts. The same tests run against
 both the `plan_code` schema and the reported `plan` schema with its UUID primary
 key and billing-period columns. They also verify new-trip notifications and
 that rerunning migration 013 preserves existing subscription records.
+
+## 9) Subscription page and demo checkout
+
+Apply `supabase/014_subscription_checkout.sql` after the updated migrations 012
+and 013, then deploy Angular. The navbar's Subscription link opens
+`/subscription`. Users choose Premium, proceed to
+`/subscription/checkout/:id`, and click **Complete demo payment**. No card
+details are collected, no money is charged, and no renewal is scheduled.
+Demo Premium has no automatic expiration.
+
+The checkout is persisted server-side and belongs to the signed-in user. It
+expires after 30 minutes; users can cancel before completion. Starting checkout
+does not activate Premium. Completion updates or creates the subscription and
+marks the checkout completed in one transaction. Retrying a completed checkout
+returns its existing result. Activation invokes migration 013's existing match
+notification trigger. Both `plan` and `plan_code` schemas are supported.
+
+Migration 014 deliberately enables the dummy gateway. To turn it off, run this
+as a database administrator or trusted backend:
+
+```sql
+update public.subscription_billing_settings set mock_enabled = false where id;
+```
+
+This disables both new demo checkouts and completion of pending demo checkouts.
+It does not revoke Premium already granted by the demo.
+
+### Real gateway integration
+
+The `PAYMENT_GATEWAY` injection token separates page behavior from the
+`MockPaymentGateway` adapter. A real adapter should request a hosted checkout
+from a trusted backend and redirect the user to the payment provider.
+
+The backend must set the plan, price, currency, billing period, provider, and
+checkout ownership. A webhook must verify the provider signature, successful
+payment, expected amount/currency, and checkout reference before calling the
+service-role-only `fulfill_subscription_checkout` function. Extend that
+function's demo entitlement assignment for real paid billing periods, renewal,
+cancellation and refunds. Browser redirects are not payment confirmation.
+The existing unique provider reference and completed-checkout handling support
+idempotent settlement.
+
+Disable the mock gateway before enabling real payments; never expose service-role
+keys or permit browsers to call fulfillment directly. Real provider code and
+recurring billing are not included in this demo implementation.
+
+### Verification
+
+`npm run test:notifications` covers checkout creation/completion, missing
+subscription records, idempotency, ownership, protected fulfillment, cancellation,
+expiry, disabling the mock provider, transaction rollback and activation-triggered
+notifications against both subscription schemas.
