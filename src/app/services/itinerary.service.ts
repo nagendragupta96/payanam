@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { dataFetchErrorMessage, runSupabaseQuery, supabase } from './supabase-client';
 import { FlightLeg, Itinerary } from '../models/itinerary.model';
 import { AuthService } from './auth.service';
+import { NotificationService } from './notification.service';
 
 interface SearchParams {
   originAirportCode: string;
@@ -21,7 +22,10 @@ interface RankedItinerary {
 export class ItineraryService {
   private readonly queryTimeoutMs = 12000;
 
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private notificationService: NotificationService
+  ) {}
 
   async createItinerary(itinerary: Itinerary, userId: string): Promise<{ error: string | null; warning: string | null }> {
     try {
@@ -94,6 +98,7 @@ export class ItineraryService {
         }
       }
 
+      this.queueAutoMatchNotifications(itineraryId);
       return { error: null, warning };
     } catch (error: any) {
       if (error?.message === 'timeout') {
@@ -377,6 +382,24 @@ export class ItineraryService {
   private logQueryError(operation: string, message: string): void {
     console.error('[itinerary]', `${operation} failed`, { message });
     this.authService.reportAuthFailure(`itinerary.${operation}`, message);
+  }
+
+  private queueAutoMatchNotifications(itineraryId: string): void {
+    void this.notificationService
+      .createAutoMatchNotifications(itineraryId)
+      .then((result) => {
+        if (result.error) {
+          console.warn('[itinerary] auto-match notifications failed', { itineraryId, message: result.error });
+          return;
+        }
+        console.debug('[itinerary] auto-match notifications created', { itineraryId, count: result.count });
+      })
+      .catch((error) => {
+        console.warn('[itinerary] auto-match notifications failed', {
+          itineraryId,
+          message: error instanceof Error ? error.message : String(error)
+        });
+      });
   }
 
 }

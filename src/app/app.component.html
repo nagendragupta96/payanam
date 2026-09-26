@@ -33,6 +33,12 @@
                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger menu-count-badge">{{ messageNotificationService.unreadCount }}</span>
               }
             </a>
+            <a routerLink="/notifications" routerLinkActive="active" class="nav-link px-3 position-relative" (click)="closeNav()">
+              Notifications
+              @if (notificationService.unreadCount > 0) {
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger menu-count-badge">{{ notificationService.unreadCount }}</span>
+              }
+            </a>
             <a routerLink="/profile" routerLinkActive="active" class="nav-link px-3 d-inline-flex align-items-center gap-2 nav-profile-link" (click)="closeNav()">
               <img class="nav-avatar" [src]="profileAvatarUrl" alt="Profile avatar" (error)="onAvatarError()" />
               <span>Profile</span>

@@ -4,6 +4,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from './services/auth.service';
 import { MessageNotificationService } from './services/message-notification.service';
 import { RequestNotificationService } from './services/request-notification.service';
+import { NotificationService } from './services/notification.service';
 import { dataFetchErrorMessage, runSupabaseQuery, supabase } from './services/supabase-client';
 
 @Component({
@@ -28,6 +29,7 @@ export class AppComponent implements OnDestroy {
     public authService: AuthService,
     public messageNotificationService: MessageNotificationService,
     public requestNotificationService: RequestNotificationService,
+    public notificationService: NotificationService,
     private router: Router
   ) {
     this.currentUrl = this.router.url;
