@@ -67,3 +67,122 @@ test('unknown downstream view dependencies abort the removal without cascading d
     assert.equal((await db.query('select destination from public.custom_report')).rows[0].destination, 'London');
   } finally { await db.close(); }
 });
+
+test('a legacy trigger reproduces the publishing error after an unchecked column drop', async () => {
+  const db = await fixture();
+  try {
+    await db.exec(`
+      create function public.legacy_destination_trigger() returns trigger language plpgsql as
+      $$ begin perform new.destination; return new; end $$;
+      create trigger legacy_destination before insert or update on public.itineraries
+        for each row execute function public.legacy_destination_trigger();
+      drop view public.public_itinerary_search;
+      alter table public.itineraries drop column destination;
+    `);
+    await assert.rejects(
+      db.exec("insert into public.itineraries (origin_airport_code, destination_airport_code) values ('JFK', 'LHR')"),
+      /record "new" has no field "destination"/
+    );
+  } finally { await db.close(); }
+});
+
+for (const reference of ['new.destination', 'OLD . "destination"']) {
+  test('preflight prevents destructive removal with legacy reference ' + reference, async () => {
+    const db = await fixture();
+    try {
+      await db.exec(`
+        create function public.legacy_destination_trigger() returns trigger language plpgsql as
+        $$ begin perform ${reference}; return new; end $$;
+        create trigger legacy_destination before update on public.itineraries
+          for each row execute function public.legacy_destination_trigger();
+      `);
+      await assert.rejects(db.exec(await readMigration('015_remove_optional_destination.sql')), /legacy_destination.*legacy_destination_trigger/i);
+      await db.exec('rollback');
+      assert.equal((await db.query('select destination from public.public_itinerary_search')).rows[0].destination, 'London');
+      await db.exec("update public.itineraries set destination = 'Still writable'");
+    } finally { await db.close(); }
+  });
+}
+
+test('airport-only validation triggers remain enabled and usable after removal', async () => {
+  const db = await fixture();
+  try {
+    await db.exec(`
+      create function public.validate_airports() returns trigger language plpgsql as
+      $$ begin
+        if new.destination_airport_code = new.origin_airport_code then
+          raise exception 'Airports must differ';
+        end if;
+        return new;
+      end $$;
+      create trigger validate_airports before insert or update on public.itineraries
+        for each row execute function public.validate_airports();
+    `);
+    await db.exec(await readMigration('015_remove_optional_destination.sql'));
+    await db.exec("insert into public.itineraries (origin_airport_code, destination_airport_code) values ('BOS', 'CDG')");
+    await assert.rejects(
+      db.exec("insert into public.itineraries (origin_airport_code, destination_airport_code) values ('BOS', 'BOS')"),
+      /Airports must differ/
+    );
+  } finally { await db.close(); }
+});
+
+async function installDeployedTriggers(db) {
+  await db.exec(await readMigration('010_itinerary_date_validation.sql'));
+  // Exact legacy behavior supplied from the deployed database.
+  await db.exec(`
+    create or replace function public.sync_itineraries_destination_columns()
+    returns trigger language plpgsql as $function$
+    begin
+      -- If only one side is provided/changed, mirror into the other side.
+      if new.destination is null and new.destination_airport is not null then
+        new.destination := new.destination_airport;
+      elsif new.destination_airport is null and new.destination is not null then
+        new.destination_airport := new.destination;
+      elsif new.destination is distinct from new.destination_airport then
+        -- Prefer explicit destination input when both differ.
+        new.destination_airport := new.destination;
+      end if;
+      return new;
+    end;
+    $function$;
+    create trigger trg_sync_itineraries_destination_columns
+      before insert or update on public.itineraries
+      for each row execute function public.sync_itineraries_destination_columns();
+  `);
+}
+
+for (const alreadyRemoved of [false, true]) {
+  test('publishing and editing work with deployed triggers: ' + (alreadyRemoved ? 'repair existing database' : 'fresh migration'), async () => {
+    const db = await fixture();
+    try {
+      await installDeployedTriggers(db);
+      const dateDefinition = (await db.query("select pg_get_functiondef('public.validate_itinerary_dates()'::regprocedure) as definition")).rows[0].definition;
+      if (alreadyRemoved) {
+        // Simulate the original 015, which did not know about the deployed trigger.
+        await db.exec('drop view public.public_itinerary_search; alter table public.itineraries drop column destination');
+        await assert.rejects(
+          db.exec("insert into public.itineraries (origin_airport_code, destination_airport_code, start_date, end_date) values ('BOS', 'CDG', current_date, current_date + 1)"),
+          /record "new" has no field "destination"/
+        );
+      } else {
+        await db.exec(await readMigration('015_remove_optional_destination.sql'));
+      }
+      const repair = await readMigration('016_remove_legacy_destination_sync.sql');
+      await db.exec(repair);
+      await db.exec(repair);
+      await db.exec(`insert into public.itineraries
+        (origin_airport_code, destination_airport_code, origin_airport, destination_airport, start_date, end_date)
+        values ('BOS', 'CDG', 'BOS', 'CDG', current_date, current_date + 1)`);
+      await db.exec("update public.itineraries set destination_airport_code = 'SIN', destination_airport = 'SIN' where origin_airport_code = 'BOS'");
+      const trip = (await db.query("select destination_airport, destination_airport_code from public.itineraries where origin_airport_code = 'BOS'")).rows[0];
+      assert.deepEqual(trip, { destination_airport: 'SIN', destination_airport_code: 'SIN' });
+      const triggers = (await db.query("select tgname, tgenabled from pg_trigger where tgrelid = 'public.itineraries'::regclass and not tgisinternal")).rows;
+      assert.deepEqual(triggers, [{ tgname: 'itineraries_validate_dates', tgenabled: 'O' }]);
+      assert.equal((await db.query("select pg_get_functiondef('public.validate_itinerary_dates()'::regprocedure) as definition")).rows[0].definition, dateDefinition);
+      await assert.rejects(db.exec("update public.itineraries set start_date = current_date - 1"), /start_date cannot be in the past/);
+      await assert.rejects(db.exec("update public.itineraries set end_date = current_date - 1"), /end_date cannot be in the past/);
+      await assert.rejects(db.exec("update public.itineraries set start_date = current_date + 2, end_date = current_date + 1"), /end_date must be on or after start_date/);
+    } finally { await db.close(); }
+  });
+}

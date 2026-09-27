@@ -1,6 +1,33 @@
 -- Remove the optional free-text destination, keeping airport routing intact.
 begin;
 
+-- This legacy trigger only mirrored the free-text destination and airport field.
+-- It must be retired before its source column is removed.
+drop trigger if exists trg_sync_itineraries_destination_columns on public.itineraries;
+drop function if exists public.sync_itineraries_destination_columns();
+
+-- PL/pgSQL record-field references are not tracked as DROP COLUMN dependencies.
+-- Stop before changing the schema if a legacy trigger still uses this field.
+do $$
+declare
+  v_legacy_triggers text;
+begin
+  select string_agg(format('%I -> %I.%I', t.tgname, n.nspname, p.proname), ', ')
+  into v_legacy_triggers
+  from pg_trigger t
+  join pg_proc p on p.oid = t.tgfoid
+  join pg_namespace n on n.oid = p.pronamespace
+  where t.tgrelid = 'public.itineraries'::regclass
+    and not t.tgisinternal
+    and p.prosrc ~* $pattern$\m(new|old)\M[[:space:]]*\.[[:space:]]*("destination"|destination\M)$pattern$;
+
+  if v_legacy_triggers is not null then
+    raise exception 'Legacy itinerary triggers still reference destination: %', v_legacy_triggers
+      using hint = 'Inspect supabase/diagnostics/itinerary_triggers.sql and update the referenced functions before running migration 015. Do not disable unrelated triggers.';
+  end if;
+end;
+$$;
+
 -- RESTRICT is intentional: unknown dependent objects must not be deleted.
 drop view if exists public.public_itinerary_search;
 alter table public.itineraries drop column if exists destination;

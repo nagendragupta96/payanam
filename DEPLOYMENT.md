@@ -214,3 +214,27 @@ Verification:
   Alternatively set `PLAYWRIGHT_MODULE` to its installed package directory.
   The script uses headless Edge, synthetic sessions and intercepted APIs; it does
   not access production data. Screenshots are written under `.artifacts/`.
+
+## 11) Fix publishing after destination removal
+
+If Publish Itinerary reports `record "new" has no field "destination"`, apply
+`supabase/016_remove_legacy_destination_sync.sql` in the Supabase SQL editor.
+No Angular redeployment is required for this database repair.
+
+The original database had `trg_sync_itineraries_destination_columns`, calling
+`sync_itineraries_destination_columns()` to mirror the removed free-text
+`destination` column and `destination_airport`. PL/pgSQL record-field references
+are not tracked as column-drop dependencies, so that trigger survived the column
+removal and then failed on insert/update.
+
+Migration 016 removes only that obsolete trigger and its function. It preserves
+`itineraries_validate_dates`, both destination airport fields, and existing trip
+data; it does not restore the removed optional field. It is repeatable and uses
+no CASCADE. The updated 015 also retires this known trigger before dropping the
+column on new installations and checks for other direct NEW/OLD destination
+references in attached trigger functions.
+
+For an unexpected trigger dependency, use the read-only
+`supabase/diagnostics/itinerary_triggers.sql` to inspect definitions before
+changing them. The preflight is a targeted check for direct record references,
+not a full analysis of dynamic SQL or nested helper functions.
