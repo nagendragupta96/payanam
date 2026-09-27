@@ -1,6 +1,7 @@
 <div class="app-shell min-vh-100">
   <app-overflow-nav
     [loggedIn]="isLoggedIn" [currentUrl]="currentUrl" [avatarUrl]="profileAvatarUrl"
+    [isAdmin]="adminService.isAdmin"
     [requestCount]="requestNotificationService.unreadRequestCount"
     [messageCount]="messageNotificationService.unreadCount"
     [notificationCount]="notificationService.unreadCount"

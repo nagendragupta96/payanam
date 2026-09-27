@@ -238,3 +238,143 @@ For an unexpected trigger dependency, use the read-only
 `supabase/diagnostics/itinerary_triggers.sql` to inspect definitions before
 changing them. The preflight is a targeted check for direct record references,
 not a full analysis of dynamic SQL or nested helper functions.
+
+## 12) Admin console and activity history
+
+### Deploy and grant access
+
+1. Back up the database and test on a staging Supabase project first. Apply
+   `supabase/017_admin_activity.sql` as `postgres` in the SQL Editor after 001-016.
+   The migration expects the existing application tables, including notifications
+   and subscription checkouts. It is transactional and repeatable.
+2. In `supabase/admin/grant_admin.sql`, replace the placeholder email with the
+   email of an existing account. Run that script as `postgres`. A missing or
+   ambiguous account fails; no account is silently created. Role grants and
+   revocations are audited. SQL-operator changes have a null actor (System / SQL).
+3. Deploy Angular. The Admin link appears for admins; open `/admin` after signing
+   in. Access is rechecked on foreground return. To revoke immediately at the
+   server, delete that UUID from `public.app_admins` using a trusted SQL session.
+
+The role is not a profile field, user-editable metadata, or cached JWT claim.
+Normal accounts cannot grant themselves access. Every admin RPC verifies the
+current database role and auth identity. No service-role key is sent to Angular.
+The route guard and hidden menu are usability features, not authorization.
+Admin/audit tables have RLS and no browser table privileges; access is through
+the explicitly granted, permission-checked functions only. Helpers are not
+callable by `anon` or `authenticated`; definer functions use an empty search path.
+
+### Console and moderation
+
+- Overview: accounts/new accounts/admins/Premium, posts/upcoming/new posts,
+  requests by key status, conversations/messages, notification totals/unread,
+  completed **demo** checkouts, recent active actors/events/reported API failures.
+  Demo checkouts are not revenue. Premium uses the same entitlement helper and
+  ACTIVE status as the existing notification/checkout code (not a new billing rule).
+- Users: searchable, paginated identity/access/post counts and sign-in dates.
+- Posts: searchable, paginated routes/dates/owners/request counts.
+- Activity: paginated history, action/record search, source, actor or recipient
+  UUID, and inclusive UTC date-range filters. Displayed timestamps use local time.
+  Active-user metrics count distinct audit actors, including subsequently deleted
+  accounts; they are not concurrent-session counts.
+- Account/post deletion requires typing DELETE and a 3-500 character reason.
+  Do not put secrets in moderation reasons. Self-deletion and deletion of any
+  current admin are blocked; revoke the role in SQL before another admin deletes
+  that account. Ordinary self-service account deletion is unchanged.
+- Deletion removes the auth identity (accounts only), owned posts, related
+  requests/chat threads/messages/notifications, contact details, legs, subscription
+  and checkout records as applicable. The SQL operation and audit entry are one
+  transaction. Unknown foreign-key dependencies roll everything back and produce
+  a visible error; no CASCADE schema changes are used.
+- Accounts owning Storage files are blocked with an actionable error. Use the
+  Supabase Storage API/dashboard to remove or transfer files, then retry. Never
+  delete storage metadata directly. Files, payment-provider subscriptions and
+  other external resources are not deleted by this console.
+- Supabase permits direct auth-user deletion, but an already issued JWT may
+  remain valid until expiry; see [Supabase user management](https://supabase.com/docs/guides/auth/managing-user-data).
+  Auth sessions/refresh records follow Supabase's existing FK cascades. Admin
+  authorization and client-activity ingestion additionally require the user to
+  still exist. This migration does not rewrite unrelated application RLS, custom
+  external services or invalidate every cached token on those services.
+
+### Audit coverage and privacy
+
+Authoritative `database` events record successful INSERT/UPDATE/DELETE operations
+on profiles, itineraries, legs, contacts, requests, threads, messages,
+subscriptions, checkouts, notifications and admin roles, plus auth-user lifecycle
+and auth session creation/deletion. No-op updates are skipped. These writes are
+transactional: if auditing fails, the associated mutation fails too. Existing
+best-effort notification generation remains non-blocking to itinerary saving.
+`admin` records cover console reads and successful deletions with their reasons.
+An unknown schema dependency or failed transaction never leaves a false
+successful-delete audit entry.
+
+Notification inserts identify the recipient, type and notification ID; updates
+record read-state changes. Request/message badges are derived from their tables,
+so `notification.available` records badge eligibility, **not delivery**. The app
+does not implement email/push receipts. Notifications generated by a background
+job have a null actor and retain the recipient UUID.
+
+`client` records are explicitly unverified, best-effort telemetry: signed-in page
+navigation, control clicks/changes/submits, visibility/focus/connectivity events,
+and Supabase HTTP request starts/successes/errors. Static control names or DOM
+tag/index identify interactions. Generic HTTP events identify endpoint/method,
+not the selected user/post or query filters. Keyboard typing and mouse movement
+are deliberately not recorded. Server-confirmed login/session events are audited;
+anonymous browsing and failed anonymous logins are not ingested by this endpoint.
+Use Supabase Auth/platform logs for failed auth and server errors independent of
+the browser. Rolled-back mutations have no successful database event; a browser
+API error may be available instead.
+
+Passwords, tokens, chat/request/notification contents, contact values, search
+terms, URL parameters, and arbitrary form values are not copied into history.
+Database audit stores identifiers, changed **field names**, status/read flags and
+notification type, not before/after row snapshots. Admin user lists expose email
+for moderation, but never auth secrets. User IDs and moderation reasons remain
+sensitive: restrict admin membership, review privacy disclosures, and set a
+retention policy appropriate to the deployment before enabling logging.
+
+Browser logging is batched (50), memory-bounded (200), time-bounded, rate-limited
+(600 events/user/minute), and isolated from application success/failure. It never
+re-enters the auth callback or logs its own transport. It clears/aborts on identity
+changes and backs off on failure. Uncertain batches are not retried to avoid
+duplicates; tab close, offline periods, blockers, malicious clients and overload
+can lose telemetry. This is **not a guarantee of every physical user action**.
+No past activity is reconstructed; collection starts after applying 017.
+
+Audit history intentionally has no user/post foreign keys, so account/post deletion
+does not erase it. Browser accounts, including admins, cannot mutate it directly.
+Trusted database operators can still alter history: this is not externally sealed
+or cryptographically tamper-proof storage. Export to a dedicated audit sink if
+that guarantee is required. No automatic purge is enabled. After approving a
+retention policy, a trusted operator may archive and delete old records, e.g.:
+
+```sql
+-- Example only: choose retention periods for your deployment before executing.
+delete from public.activity_events
+where source = 'client' and created_at < now() - interval '30 days';
+```
+
+Monitor table size, write latency, and ingestion warnings. New business tables
+need an audit trigger added explicitly; arbitrary future tables aren't covered.
+Admin lists use stable ordering and offset pagination; concurrent writes may move
+rows between pages, so refresh when needed.
+
+### Verification
+
+- `npm run test:admin`: isolated PostgreSQL tests for grants/RLS, privilege
+  escalation, pagination, redaction, notification/session events, rate limits,
+  deletion dependencies, rollback, protected admins, role revocation and Storage.
+- `npm run build`: Angular production compile.
+- Start Angular on `127.0.0.1:4201`, then run `node scripts/verify-admin.mjs` with
+  Playwright installed (`PLAYWRIGHT_MODULE` can point to the package directory).
+  Set `ADMIN_TEST_URL` for another local port. Headless Edge checks desktop/mobile,
+  navigation/access, statistics, pagination, both deletion flows, cancellation,
+  visible errors/retry, telemetry redaction/non-recursion and logging outages.
+  All external HTTP/WebSocket traffic is mocked or blocked. No real data is deleted.
+- In staging: grant a designated test admin; verify ordinary users are denied;
+  create a trip/request/chat/subscription and matching notification; inspect
+  database events; delete disposable post/account fixtures; verify preserved
+  audit records. Then revoke the admin role and check that RPCs fail immediately.
+
+Local tests do not apply the migration to production or validate custom production
+foreign keys, Storage policies, Auth extensions or external integrations.

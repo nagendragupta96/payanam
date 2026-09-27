@@ -8,7 +8,8 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:notifications": "node --test supabase/tests/premium-upgrade.test.mjs supabase/tests/premium-plan-schema.test.mjs",
-    "test:destination": "node --test supabase/tests/remove-destination.test.mjs"
+    "test:destination": "node --test supabase/tests/remove-destination.test.mjs",
+    "test:admin": "node --test supabase/tests/admin-activity.test.mjs"
   },
   "private": true,
   "dependencies": {
@@ -22,6 +23,7 @@
     "@angular/router": "^17.3.0",
     "@supabase/supabase-js": "^2.98.0",
     "bootstrap": "^5.3.8",
+    "lucide-angular": "^0.468.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.14.3"
