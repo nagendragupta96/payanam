@@ -670,7 +670,7 @@ export class AuthService implements OnDestroy {
   }
 
   private isProtectedRoute(path: string): boolean {
-    const protectedPrefixes = ['/profile', '/create-itinerary', '/my-trips', '/requests', '/messages', '/chat', '/settings'];
+    const protectedPrefixes = ['/profile', '/create-itinerary', '/my-trips', '/requests', '/messages', '/chat', '/settings', '/admin'];
     return protectedPrefixes.some((prefix) => path.startsWith(prefix));
   }
 

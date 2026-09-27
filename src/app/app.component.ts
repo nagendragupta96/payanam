@@ -6,6 +6,8 @@ import { AuthService } from './services/auth.service';
 import { MessageNotificationService } from './services/message-notification.service';
 import { RequestNotificationService } from './services/request-notification.service';
 import { NotificationService } from './services/notification.service';
+import { AdminService } from './services/admin.service';
+import { ActivityService } from './services/activity.service';
 import { dataFetchErrorMessage, runSupabaseQuery, supabase } from './services/supabase-client';
 
 @Component({
@@ -30,6 +32,8 @@ export class AppComponent implements OnDestroy {
     public messageNotificationService: MessageNotificationService,
     public requestNotificationService: RequestNotificationService,
     public notificationService: NotificationService,
+    public adminService: AdminService,
+    activityService: ActivityService,
     private router: Router
   ) {
     this.currentUrl = this.router.url;

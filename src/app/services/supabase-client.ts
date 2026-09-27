@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
+import { activityFetch } from './activity-transport';
 
 const inProcessLockQueues = new Map<string, Promise<unknown>>();
 
@@ -142,6 +143,7 @@ function getSupabaseConfigIssue(): string | null {
 export const supabaseConfigIssue = getSupabaseConfigIssue();
 
 export const supabase = createClient(environment.supabaseUrl, environment.supabaseAnonKey, {
+  global: { fetch: activityFetch },
   auth: {
     persistSession: true,
     autoRefreshToken: true,

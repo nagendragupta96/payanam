@@ -1,0 +1,64 @@
+<header class="admin-heading">
+  <div><p class="eyebrow">PAYANAM</p><h1>Administration</h1></div>
+  <button class="btn btn-outline-secondary icon-button" title="Refresh" aria-label="Refresh" [disabled]="loading || deleting" (click)="load()"><lucide-icon [img]="icons.RefreshCw" [size]="18" /></button>
+</header>
+<nav class="admin-tabs" aria-label="Admin sections">
+  <a *ngFor="let tab of tabs" [routerLink]="['/admin', tab.id]" [class.active]="section === tab.id" [attr.aria-current]="section === tab.id ? 'page' : null">{{ tab.label }}</a>
+</nav>
+<p *ngIf="notice" class="alert alert-success" role="status">{{ notice }}</p>
+<form *ngIf="section !== 'overview'" class="filters" (ngSubmit)="applyFilters()">
+  <label class="search-filter">Search<input class="form-control" name="search" [(ngModel)]="search" maxlength="200" [placeholder]="section === 'users' ? 'Name, email or user ID' : section === 'posts' ? 'Airport, email or post ID' : 'Action or record ID'"></label>
+  <ng-container *ngIf="section === 'activity'">
+    <label>Source<select class="form-select" name="source" aria-label="Source" [(ngModel)]="source"><option value="">All sources</option><option value="database">Database</option><option value="admin">Admin</option><option value="client">Browser (unverified)</option></select></label>
+    <label>User UUID<input class="form-control" name="actor" [(ngModel)]="actor" placeholder="Actor or recipient" maxlength="36"></label>
+    <label>From (UTC)<input class="form-control" type="date" name="from" [(ngModel)]="from"></label>
+    <label>Through (UTC)<input class="form-control" type="date" name="to" [(ngModel)]="to"></label>
+  </ng-container>
+  <button class="btn btn-primary icon-button" type="submit" title="Apply filters" aria-label="Apply filters" [disabled]="loading"><lucide-icon [img]="icons.Search" [size]="18" /></button>
+</form>
+<p *ngIf="error" class="alert alert-danger" role="alert">{{ error }} <button class="btn btn-sm btn-outline-danger" (click)="load()">Retry</button></p>
+<p *ngIf="loading" class="loading" role="status"><span class="spinner-border spinner-border-sm me-2"></span>Loading {{ section }}...</p>
+<ng-container *ngIf="!loading && !error">
+  <div *ngIf="section === 'overview'" class="stats-grid">
+    <section *ngFor="let group of groups" class="stats-section">
+      <h2>{{ group.name }}</h2>
+      <dl><div *ngFor="let metric of group.metrics"><dt>{{ metric[1] }}</dt><dd>{{ stats[metric[0]] | number }}</dd></div></dl>
+    </section>
+  </div>
+  <div *ngIf="section === 'users' && users.length" class="table-responsive" tabindex="0" aria-label="User accounts">
+    <table class="table align-middle"><thead><tr><th>User</th><th>Access</th><th>Posts</th><th>Joined</th><th>Last sign-in</th><th>Actions</th></tr></thead><tbody>
+      <tr *ngFor="let user of users"><td><strong>{{ user.display_name || 'Unnamed user' }}</strong><div>{{ user.email }}</div><small class="record-id">{{ user.id }}</small></td>
+        <td>{{ user.is_admin ? 'Admin' : 'Member' }}<div class="text-muted small">{{ user.is_premium ? 'Premium' : 'Free' }}</div></td><td>{{ user.posts }}</td><td>{{ user.created_at | date:'mediumDate' }}</td><td>{{ (user.last_sign_in_at | date:'short') || 'Never' }}</td>
+        <td><button class="btn btn-outline-danger icon-button" [disabled]="user.is_admin || user.id === auth.currentSession?.user?.id" [title]="user.is_admin ? 'Admin accounts are protected' : 'Delete account'" aria-label="Delete account" (click)="openDelete('user', user.id, user.email)"><lucide-icon [img]="icons.Trash2" [size]="17" /></button></td></tr>
+    </tbody></table>
+  </div>
+  <div *ngIf="section === 'posts' && posts.length" class="table-responsive" tabindex="0" aria-label="User posts">
+    <table class="table align-middle"><thead><tr><th>Route</th><th>Owner</th><th>Travel dates</th><th>Requests</th><th>Published</th><th>Actions</th></tr></thead><tbody>
+      <tr *ngFor="let post of posts"><td><a [routerLink]="['/itinerary', post.id]">{{ post.origin_airport_code }} &rarr; {{ post.destination_airport_code }}</a><div class="record-id">{{ post.id }}</div></td><td>{{ post.owner_email }}</td><td>{{ post.start_date | date:'mediumDate' }}<br>{{ post.end_date | date:'mediumDate' }}</td><td>{{ post.requests }}</td><td>{{ post.created_at | date:'short' }}</td>
+        <td><button class="btn btn-outline-danger icon-button" title="Delete post" aria-label="Delete post" (click)="openDelete('post', post.id, post.origin_airport_code + ' to ' + post.destination_airport_code)"><lucide-icon [img]="icons.Trash2" [size]="17" /></button></td></tr>
+    </tbody></table>
+  </div>
+  <div *ngIf="section === 'activity' && events.length" class="table-responsive" tabindex="0" aria-label="Activity records">
+    <table class="table activity-table"><thead><tr><th>Time</th><th>Actor</th><th>Action / Source</th><th>Record / Recipient</th><th>Details</th></tr></thead><tbody>
+      <tr *ngFor="let event of events"><td>{{ event.created_at | date:'medium' }}<div class="text-muted small">#{{ event.id }}</div></td><td><span class="record-id">{{ event.actor_id || 'System / SQL' }}</span><div *ngIf="event.actor_is_admin" class="small">Admin</div></td><td>{{ event.action }}<div class="source-label">{{ event.source === 'client' ? 'Browser (unverified)' : event.source }}</div></td><td><div>{{ event.entity_type }}</div><span class="record-id">{{ event.entity_id }}</span><div *ngIf="event.subject_user_id" class="record-id">User: {{ event.subject_user_id }}</div></td><td><pre>{{ event.details | json }}</pre></td></tr>
+    </tbody></table>
+  </div>
+  <p *ngIf="section !== 'overview' && !total" class="empty-state">No {{ section === 'activity' ? 'activity records' : section }} found.</p>
+  <footer *ngIf="section !== 'overview'" class="pagination-bar">
+    <span>{{ total ? offset + 1 : 0 }}-{{ pageEnd }} of {{ total | number }}</span>
+    <div><button class="btn btn-outline-secondary icon-button" title="Previous page" aria-label="Previous page" [disabled]="offset === 0" (click)="page(-1)"><lucide-icon [img]="icons.ChevronLeft" [size]="18" /></button>
+    <button class="btn btn-outline-secondary icon-button" title="Next page" aria-label="Next page" [disabled]="offset + pageSize >= total" (click)="page(1)"><lucide-icon [img]="icons.ChevronRight" [size]="18" /></button></div>
+  </footer>
+</ng-container>
+
+<dialog #deleteDialog (cancel)="onCancel($event)" aria-labelledby="delete-title">
+  <form (ngSubmit)="confirmDelete()">
+    <header class="dialog-heading"><h2 id="delete-title">Delete {{ pending?.kind === 'user' ? 'account' : 'post' }}?</h2><button type="button" class="btn icon-button" aria-label="Close" title="Close" [disabled]="deleting" (click)="closeDelete()"><lucide-icon [img]="icons.X" [size]="20" /></button></header>
+    <p class="delete-target">{{ pending?.label }}</p>
+    <p>This permanently removes the {{ pending?.kind === 'user' ? 'account, its posts' : 'post' }} and related requests, conversations, and notifications. Audit history is retained. This cannot be undone.</p>
+    <label>Reason<textarea class="form-control" name="reason" [(ngModel)]="reason" required minlength="3" maxlength="500" rows="3" [disabled]="deleting"></textarea></label>
+    <label class="mt-3">Type DELETE to confirm<input class="form-control" name="confirmation" [(ngModel)]="confirmation" autocomplete="off" [disabled]="deleting"></label>
+    <p *ngIf="deleteError" class="alert alert-danger mt-3" role="alert">{{ deleteError }}</p>
+    <footer class="dialog-actions"><button type="button" class="btn btn-outline-secondary" [disabled]="deleting" (click)="closeDelete()">Cancel</button><button class="btn btn-danger" [disabled]="deleting || confirmation !== 'DELETE' || reason.trim().length < 3">{{ deleting ? 'Deleting...' : 'Delete permanently' }}</button></footer>
+  </form>
+</dialog>

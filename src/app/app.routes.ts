@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './guards/auth.guard';
+import { adminGuard } from './guards/admin.guard';
 import { LandingComponent } from './pages/landing/landing.component';
 import { AuthComponent } from './pages/auth/auth.component';
 import { ProfileComponent } from './pages/profile/profile.component';
@@ -16,6 +17,9 @@ import { SubscriptionComponent } from './pages/subscription/subscription.compone
 import { CheckoutComponent } from './pages/subscription/checkout.component';
 
 export const routes: Routes = [
+  { path: 'admin', pathMatch: 'full', redirectTo: 'admin/overview' },
+  { path: 'admin/:section', canActivate: [adminGuard], loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent) },
+  { path: 'admin-access', canActivate: [authGuard], loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminAccessComponent) },
   { path: '', component: LandingComponent },
   { path: 'home', component: LandingComponent },
   { path: 'auth', component: AuthComponent },

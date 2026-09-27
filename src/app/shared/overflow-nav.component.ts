@@ -13,6 +13,7 @@ interface NavItem { path: string; label: string; count?: number; profile?: boole
 })
 export class OverflowNavComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() loggedIn = false;
+  @Input() isAdmin = false;
   @Input() currentUrl = '/';
   @Input() avatarUrl = '';
   @Input() requestCount = 0;
@@ -48,6 +49,7 @@ export class OverflowNavComponent implements AfterViewInit, OnChanges, OnDestroy
         { path: '/messages', label: 'Messages', count: this.messageCount },
         { path: '/notifications', label: 'Notifications', count: this.notificationCount },
         { path: '/subscription', label: 'Subscription' },
+        ...(this.isAdmin ? [{ path: '/admin', label: 'Admin' }] : []),
         { path: '/profile', label: 'Profile', profile: true },
         { path: '', label: 'Logout', logout: true }
       ] : [{ path: '/auth', label: 'Login' }])
