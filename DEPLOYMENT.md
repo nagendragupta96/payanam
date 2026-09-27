@@ -181,3 +181,36 @@ recurring billing are not included in this demo implementation.
 subscription records, idempotency, ownership, protected fulfillment, cancellation,
 expiry, disabling the mock provider, transaction rollback and activation-triggered
 notifications against both subscription schemas.
+
+## 10) Optional destination removal and navigation
+
+Deploy the updated Angular app, then apply
+`supabase/015_remove_optional_destination.sql` after the earlier migrations.
+Reload any older open app tabs after deployment so they stop sending the removed
+field. This migration permanently removes the optional free-text
+`itineraries.destination` column and its saved values. Destination airport codes,
+flight legs, trip dates and contact details remain intact.
+
+Migration 015 rebuilds `public_itinerary_search` without the removed field and
+restores public read grants. It uses a transaction and does not use CASCADE:
+unknown downstream database dependencies cause it to fail without deleting those
+objects. Do not reapply older view migrations (002, 003, 007 or 011) after 015;
+their historical view definitions still reference the removed column.
+
+Chat now accepts phone numbers. Existing email, external-messenger and payment
+keyword restrictions are unchanged. No database phone-blocking rule is defined
+in the repository.
+
+Navigation shows the maximum prefix of links that fits alongside the brand.
+Remaining links and logout appear under More; active state and unread indicators
+are retained. Links are remeasured after resizing, font loading or account/badge
+changes. Escape, outside clicks and navigation close the overflow panel.
+
+Verification:
+- `npm run test:destination`: isolated PostgreSQL migration tests.
+- `npm test -- --watch=false --browsers=ChromeHeadless --include=src/app/services/chat.service.spec.ts`: phone-message tests.
+- Start the dev server at `http://127.0.0.1:4200`, then run
+  `node scripts/verify-trip-chat-navigation.mjs` with Playwright available.
+  Alternatively set `PLAYWRIGHT_MODULE` to its installed package directory.
+  The script uses headless Edge, synthetic sessions and intercepted APIs; it does
+  not access production data. Screenshots are written under `.artifacts/`.

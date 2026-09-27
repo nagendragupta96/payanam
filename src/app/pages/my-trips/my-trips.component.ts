@@ -28,7 +28,6 @@ import { RequestService } from '../../services/request.service';
               <tr>
                 <th>Actions</th>
                 <th>Route</th>
-                <th>Destination</th>
                 <th>Dates</th>
                 <th>Request Count</th>
               </tr>
@@ -41,7 +40,6 @@ import { RequestService } from '../../services/request.service';
                   <button class="btn btn-sm btn-outline-danger" (click)="deleteTrip(trip.id!)">Delete</button>
                 </div></td>
                 <td class="route-cell">{{ trip.origin_airport_code }} → {{ trip.destination_airport_code }}</td>
-                <td>{{ trip.destination || '-' }}</td>
                 <td class="date-cell">{{ trip.start_date }} → {{ trip.end_date || 'One way' }}</td>
                 <td>{{ requestCount(trip.id) }}</td>
               </tr>

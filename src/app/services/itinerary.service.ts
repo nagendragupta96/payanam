@@ -36,7 +36,6 @@ export class ItineraryService {
       destination_airport_code: itinerary.destination_airport_code,
       start_date: itinerary.start_date,
       end_date: itinerary.end_date ?? itinerary.start_date,
-      destination: itinerary.destination ?? null,
       notes: itinerary.notes ?? null,
       // backward-compat writes
       origin_airport: itinerary.origin_airport_code,
@@ -121,7 +120,6 @@ export class ItineraryService {
             destination_airport_code: itinerary.destination_airport_code,
             start_date: itinerary.start_date,
             end_date: itinerary.end_date ?? itinerary.start_date,
-            destination: itinerary.destination ?? null,
             notes: itinerary.notes ?? null,
             origin_airport: itinerary.origin_airport_code,
             destination_airport: itinerary.destination_airport_code,

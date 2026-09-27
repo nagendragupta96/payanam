@@ -15,7 +15,6 @@ export interface Itinerary {
   owner_id?: string;
   origin_airport_code: string;
   destination_airport_code: string;
-  destination?: string | null;
   start_date: string;
   end_date?: string | null;
   has_contact_details?: boolean;

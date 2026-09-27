@@ -24,7 +24,6 @@ import { Itinerary } from '../../models/itinerary.model';
         <div *ngIf="!loading && itinerary">
           <p><strong>Route:</strong> {{ itinerary.origin_airport_code }} → {{ itinerary.destination_airport_code }}</p>
           <p><strong>Travel:</strong> {{ itinerary.start_date }} → {{ itinerary.end_date || 'One way' }}</p>
-          <p><strong>Destination:</strong> {{ itinerary.destination || '-' }}</p>
 
           <div class="alert alert-secondary" *ngIf="isSelfTrip">This is your trip.</div>
 

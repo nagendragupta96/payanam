@@ -1,0 +1,50 @@
+<nav class="bg-white border-bottom shadow-sm" aria-label="Main navigation">
+  <div class="container nav-row">
+    <a routerLink="/home" class="navbar-brand fw-semibold d-flex align-items-center gap-2" (click)="close()"><span aria-hidden="true">&#9992;&#65039;</span>Payanam</a>
+    <div #available class="nav-available">
+      <div class="nav-visible">
+        @for (item of visibleItems; track item.label) {
+          <ng-container *ngTemplateOutlet="link; context: { $implicit: item }"></ng-container>
+        }
+        @if (overflowItems.length) {
+          <button #moreButton type="button" class="nav-entry more-button" [class.active]="overflowActive"
+            [attr.aria-expanded]="open" aria-controls="nav-overflow" (click)="open = !open">
+            More <span aria-hidden="true" class="caret"></span>
+            @if (overflowUnread) { <span class="unread-dot" aria-label="Unread items"></span> }
+          </button>
+        }
+      </div>
+      @if (overflowItems.length && open) {
+        <div id="nav-overflow" class="overflow-panel">
+          @for (item of overflowItems; track item.label) {
+            <ng-container *ngTemplateOutlet="link; context: { $implicit: item }"></ng-container>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</nav>
+<ng-template #content let-item>
+  @if (item.profile) { <img class="nav-avatar" [src]="avatarUrl" alt="" (error)="avatarError.emit()" /> }
+  <span>{{ item.label }}</span>
+  @if (item.count) { <span class="nav-badge">{{ item.count > 99 ? '99+' : item.count }}</span> }
+</ng-template>
+<ng-template #link let-item>
+  @if (item.logout) {
+    <button type="button" class="nav-entry logout-entry" (click)="signOut()">Logout</button>
+  } @else {
+    <a [routerLink]="item.path" class="nav-entry" [class.active]="active(item)"
+      [attr.aria-current]="active(item) ? 'page' : null" (click)="close()">
+      <ng-container *ngTemplateOutlet="content; context: { $implicit: item }"></ng-container>
+    </a>
+  }
+</ng-template>
+<!-- Measurement uses inert spans, so duplicated content never enters keyboard navigation. -->
+<div class="measure-area" aria-hidden="true" inert>
+  <div #measure class="measure-items">
+    @for (item of items; track item.label) {
+      <span class="nav-entry" [class.logout-entry]="item.logout"><ng-container *ngTemplateOutlet="content; context: { $implicit: item }"></ng-container></span>
+    }
+  </div>
+  <span #moreMeasure class="nav-entry more-button">More <span class="caret"></span></span>
+</div>

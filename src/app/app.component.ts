@@ -1,5 +1,6 @@
 import { Component, OnDestroy } from '@angular/core';
-import { NavigationEnd, NavigationStart, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, NavigationStart, Router, RouterOutlet } from '@angular/router';
+import { OverflowNavComponent } from './shared/overflow-nav.component';
 import { Subscription } from 'rxjs';
 import { AuthService } from './services/auth.service';
 import { MessageNotificationService } from './services/message-notification.service';
@@ -10,12 +11,11 @@ import { dataFetchErrorMessage, runSupabaseQuery, supabase } from './services/su
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, OverflowNavComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
 export class AppComponent implements OnDestroy {
-  isNavOpen = false;
   private readonly subscriptions = new Subscription();
   currentUrl = '/';
   authErrorMessage = '';
@@ -77,12 +77,7 @@ export class AppComponent implements OnDestroy {
     return this.currentUrl === prefix || this.currentUrl.startsWith(`${prefix}/`);
   }
 
-  closeNav() {
-    this.isNavOpen = false;
-  }
-
   async logout() {
-    this.closeNav();
     await this.authService.logout();
   }
 

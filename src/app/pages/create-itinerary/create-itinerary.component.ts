@@ -38,10 +38,6 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
             </div>
           </div>
 
-          <div class="mb-2">
-            <label class="form-label" for="destinationLabel">Destination (Optional) <app-help-icon [text]="'Optional destination name, city, or region for better context.'" ariaLabel="Destination optional help"></app-help-icon></label>
-            <input id="destinationLabel" class="form-control" formControlName="destination" />
-          </div>
 
           <div class="mb-2">
             <label class="form-label" for="tripNotes">Trip Notes (Optional) <app-help-icon [text]="'Share optional notes like baggage details, travel preferences, or flexibility.'" ariaLabel="Trip notes help"></app-help-icon></label>
@@ -180,7 +176,6 @@ export class CreateItineraryComponent {
   form = this.fb.group({
     origin_airport_code: ['', [Validators.required, Validators.pattern(this.airportCodePattern)]],
     destination_airport_code: ['', [Validators.required, Validators.pattern(this.airportCodePattern)]],
-    destination: [''],
     start_date: ['', Validators.required],
     end_date: ['', Validators.required],
     notes: [''],
@@ -266,7 +261,6 @@ export class CreateItineraryComponent {
       this.form.patchValue({
         origin_airport_code: result.data.origin_airport_code ?? '',
         destination_airport_code: result.data.destination_airport_code ?? '',
-        destination: result.data.destination ?? '',
         start_date: result.data.start_date ?? '',
         end_date: result.data.end_date ?? result.data.start_date ?? '',
         notes: result.data.notes ?? ''
@@ -390,7 +384,6 @@ export class CreateItineraryComponent {
     const itineraryPayload = {
       origin_airport_code: normalize(value.origin_airport_code),
       destination_airport_code: normalize(value.destination_airport_code),
-      destination: value.destination ?? null,
       start_date: value.start_date ?? '',
       end_date: value.end_date ?? value.start_date ?? '',
       notes: value.notes ?? null,
