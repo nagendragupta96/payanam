@@ -29,6 +29,7 @@ import { RequestService } from '../../services/request.service';
                 <th>Actions</th>
                 <th>Route</th>
                 <th>Dates</th>
+                <th>Languages</th>
                 <th>Request Count</th>
               </tr>
             </thead>
@@ -41,6 +42,7 @@ import { RequestService } from '../../services/request.service';
                 </div></td>
                 <td class="route-cell">{{ trip.origin_airport_code }} → {{ trip.destination_airport_code }}</td>
                 <td class="date-cell">{{ trip.start_date }} → {{ trip.end_date || 'One way' }}</td>
+                <td>{{ languageList(trip) }}</td>
                 <td>{{ requestCount(trip.id) }}</td>
               </tr>
             </tbody>
@@ -80,6 +82,10 @@ export class MyTripsComponent implements OnDestroy {
   requestCount(itineraryId?: string): number {
     if (!itineraryId) return 0;
     return this.requestCounts[itineraryId] ?? 0;
+  }
+
+  languageList(trip: Itinerary): string {
+    return trip.languages_known?.length ? trip.languages_known.join(', ') : '-';
   }
 
   async refresh() {

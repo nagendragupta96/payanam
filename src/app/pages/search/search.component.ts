@@ -77,6 +77,7 @@ import { HelpIconComponent } from '../../shared/help-icon.component';
                 <th>Stop1</th>
                 <th>Stop2</th>
                 <th>Flight Number(s)</th>
+                <th>Languages</th>
                 <th>Posted By</th>
               </tr>
             </thead>
@@ -95,6 +96,7 @@ import { HelpIconComponent } from '../../shared/help-icon.component';
                 <td>{{ stopAirport(item, 0) }}</td>
                 <td>{{ stopAirport(item, 1) }}</td>
                 <td>{{ flightNumbers(item) }}</td>
+                <td>{{ languageList(item) }}</td>
                 <td>{{ ownerLabel(item.owner_id) }}</td>
               </tr>
             </tbody>
@@ -122,6 +124,7 @@ import { HelpIconComponent } from '../../shared/help-icon.component';
 
               <p><strong>Route:</strong> {{ selectedTrip.origin_airport_code }} → {{ selectedTrip.destination_airport_code }}</p>
               <p><strong>Travel:</strong> {{ selectedTrip.start_date }} → {{ selectedTrip.end_date || 'One way' }}</p>
+              <p><strong>Languages:</strong> {{ languageList(selectedTrip) }}</p>
               <p><strong>Posted by:</strong> {{ ownerLabel(selectedTrip.owner_id) }}</p>
 
               <h6>Legs</h6>
@@ -271,6 +274,10 @@ export class SearchComponent {
       .filter(Boolean)
       .map((value) => value!.toUpperCase());
     return flights.length ? flights.join(', ') : '-';
+  }
+
+  languageList(item: Itinerary): string {
+    return item.languages_known?.length ? item.languages_known.join(', ') : '-';
   }
 
   get hasContactDetails(): boolean {

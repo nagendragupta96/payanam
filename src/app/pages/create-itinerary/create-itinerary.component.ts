@@ -44,6 +44,12 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
             <textarea id="tripNotes" rows="2" class="form-control" formControlName="notes"></textarea>
           </div>
 
+          <div class="mb-2">
+            <label class="form-label" for="languagesKnown">Languages Known (Optional) <app-help-icon [text]="'List languages you can speak or understand, separated by commas. Example: English, Telugu, Hindi.'" ariaLabel="Languages known help"></app-help-icon></label>
+            <input id="languagesKnown" class="form-control" formControlName="languages_known" maxlength="300" />
+            <div class="form-text">Separate multiple languages with commas.</div>
+          </div>
+
           <div class="row g-2 mb-2">
             <div class="col-md-6">
               <label class="form-label" for="startDate">Start Date <span class="text-danger">*</span><app-help-icon [text]="'Select the first date of your trip.'" ariaLabel="Start date help"></app-help-icon></label>
@@ -179,6 +185,7 @@ export class CreateItineraryComponent {
     start_date: ['', Validators.required],
     end_date: ['', Validators.required],
     notes: [''],
+    languages_known: [''],
     contact_name: [''],
     contact_phone: [''],
     contact_email: [''],
@@ -263,7 +270,8 @@ export class CreateItineraryComponent {
         destination_airport_code: result.data.destination_airport_code ?? '',
         start_date: result.data.start_date ?? '',
         end_date: result.data.end_date ?? result.data.start_date ?? '',
-        notes: result.data.notes ?? ''
+        notes: result.data.notes ?? '',
+        languages_known: (result.data.languages_known ?? []).join(', ')
       });
 
       const contact = await this.itineraryContactService.getByItinerary(this.itineraryId);
@@ -386,6 +394,7 @@ export class CreateItineraryComponent {
       destination_airport_code: normalize(value.destination_airport_code),
       start_date: value.start_date ?? '',
       end_date: value.end_date ?? value.start_date ?? '',
+      languages_known: this.normalizeLanguages(value.languages_known),
       notes: value.notes ?? null,
       contact_details: {
         contact_name: value.contact_name ?? null,
@@ -444,6 +453,22 @@ export class CreateItineraryComponent {
     const hh = pad(date.getHours());
     const min = pad(date.getMinutes());
     return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+  }
+
+  private normalizeLanguages(value: string | null | undefined): string[] {
+    const seen = new Set<string>();
+    return (value ?? '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => item.slice(0, 40))
+      .filter((item) => {
+        const key = item.toLocaleLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 20);
   }
 
   private focusErrorAndFirstInvalidField(): void {

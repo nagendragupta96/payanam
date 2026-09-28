@@ -107,6 +107,10 @@ test('admin stats, safe paginated lists, filters and read auditing', async () =>
     assert.equal((await rpc(db, "select public.admin_list('posts', 'JFK') as result")).total, 1);
     const events = await rpc(db, "select public.admin_list('activity', 'admin.overview', 0, 25, 'admin', $1) as result", [admin]);
     assert.equal(events.rows.length, 1); assert.equal(events.rows[0].actor_is_admin, true);
+    const userEvents = await rpc(db, "select public.admin_list('user-activity', '', 0, 25, '', $1) as result", [other]);
+    assert.ok(userEvents.total > 0);
+    assert.ok(userEvents.rows.some(row => row.actor_id === other || row.subject_user_id === other));
+    assert.ok(userEvents.rows.some(row => row.actor_email === 'other@example.invalid' || row.subject_email === 'other@example.invalid'));
     await assert.rejects(db.exec("select public.admin_list('bad')"), /Invalid admin section/);
     await assert.rejects(db.exec("select public.admin_list('users', '', -1, 25)"), /Invalid list parameters/);
     await assert.rejects(db.exec("select public.admin_list('users', '', 0, 101)"), /Invalid list parameters/);

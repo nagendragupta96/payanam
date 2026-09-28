@@ -251,7 +251,11 @@ not a full analysis of dynamic SQL or nested helper functions.
    email of an existing account. Run that script as `postgres`. A missing or
    ambiguous account fails; no account is silently created. Role grants and
    revocations are audited. SQL-operator changes have a null actor (System / SQL).
-3. Deploy Angular. The Admin link appears for admins; open `/admin` after signing
+3. Apply `supabase/018_itinerary_languages_known.sql` if this release includes
+   itinerary-language capture. It adds `itineraries.languages_known` and refreshes
+   `public_itinerary_search`; run it before deploying the Angular code that writes
+   the new field.
+4. Deploy Angular. The Admin link appears for admins; open `/admin` after signing
    in. Access is rechecked on foreground return. To revoke immediately at the
    server, delete that UUID from `public.app_admins` using a trusted SQL session.
 
@@ -276,6 +280,8 @@ callable by `anon` or `authenticated`; definer functions use an empty search pat
   UUID, and inclusive UTC date-range filters. Displayed timestamps use local time.
   Active-user metrics count distinct audit actors, including subsequently deleted
   accounts; they are not concurrent-session counts.
+- User Activity: a readable activity view scoped to one user by UUID, or searchable
+  by name/email/user ID, including browser actions and notifications.
 - Account/post deletion requires typing DELETE and a 3-500 character reason.
   Do not put secrets in moderation reasons. Self-deletion and deletion of any
   current admin are blocked; revoke the role in SQL before another admin deletes
@@ -364,6 +370,8 @@ rows between pages, so refresh when needed.
 - `npm run test:admin`: isolated PostgreSQL tests for grants/RLS, privilege
   escalation, pagination, redaction, notification/session events, rate limits,
   deletion dependencies, rollback, protected admins, role revocation and Storage.
+- `npm run test:itinerary-languages`: isolated PostgreSQL migration tests for the
+  languages-known itinerary column and public search view.
 - `npm run build`: Angular production compile.
 - Start Angular on `127.0.0.1:4201`, then run `node scripts/verify-admin.mjs` with
   Playwright installed (`PLAYWRIGHT_MODULE` can point to the package directory).

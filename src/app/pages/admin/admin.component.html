@@ -7,10 +7,10 @@
 </nav>
 <p *ngIf="notice" class="alert alert-success" role="status">{{ notice }}</p>
 <form *ngIf="section !== 'overview'" class="filters" (ngSubmit)="applyFilters()">
-  <label class="search-filter">Search<input class="form-control" name="search" [(ngModel)]="search" maxlength="200" [placeholder]="section === 'users' ? 'Name, email or user ID' : section === 'posts' ? 'Airport, email or post ID' : 'Action or record ID'"></label>
-  <ng-container *ngIf="section === 'activity'">
+  <label class="search-filter">Search<input class="form-control" name="search" [(ngModel)]="search" maxlength="200" [placeholder]="section === 'users' ? 'Name, email or user ID' : section === 'posts' ? 'Airport, email or post ID' : isActivitySection ? 'Name, email, user ID, action or record ID' : 'Search'"></label>
+  <ng-container *ngIf="isActivitySection">
     <label>Source<select class="form-select" name="source" aria-label="Source" [(ngModel)]="source"><option value="">All sources</option><option value="database">Database</option><option value="admin">Admin</option><option value="client">Browser (unverified)</option></select></label>
-    <label>User UUID<input class="form-control" name="actor" [(ngModel)]="actor" placeholder="Actor or recipient" maxlength="36"></label>
+    <label *ngIf="section === 'activity'">User UUID<input class="form-control" name="actor" [(ngModel)]="actor" placeholder="Actor or recipient" maxlength="36"></label>
     <label>From (UTC)<input class="form-control" type="date" name="from" [(ngModel)]="from"></label>
     <label>Through (UTC)<input class="form-control" type="date" name="to" [(ngModel)]="to"></label>
   </ng-container>
@@ -29,7 +29,7 @@
     <table class="table align-middle"><thead><tr><th>User</th><th>Access</th><th>Posts</th><th>Joined</th><th>Last sign-in</th><th>Actions</th></tr></thead><tbody>
       <tr *ngFor="let user of users"><td><strong>{{ user.display_name || 'Unnamed user' }}</strong><div>{{ user.email }}</div><small class="record-id">{{ user.id }}</small></td>
         <td>{{ user.is_admin ? 'Admin' : 'Member' }}<div class="text-muted small">{{ user.is_premium ? 'Premium' : 'Free' }}</div></td><td>{{ user.posts }}</td><td>{{ user.created_at | date:'mediumDate' }}</td><td>{{ (user.last_sign_in_at | date:'short') || 'Never' }}</td>
-        <td><button class="btn btn-outline-danger icon-button" [disabled]="user.is_admin || user.id === auth.currentSession?.user?.id" [title]="user.is_admin ? 'Admin accounts are protected' : 'Delete account'" aria-label="Delete account" (click)="openDelete('user', user.id, user.email)"><lucide-icon [img]="icons.Trash2" [size]="17" /></button></td></tr>
+        <td><div class="action-row"><button class="btn btn-outline-secondary icon-button" title="View activity" aria-label="View activity" (click)="viewUserActivity(user)"><lucide-icon [img]="icons.Activity" [size]="17" /></button><button class="btn btn-outline-danger icon-button" [disabled]="user.is_admin || user.id === auth.currentSession?.user?.id" [title]="user.is_admin ? 'Admin accounts are protected' : 'Delete account'" aria-label="Delete account" (click)="openDelete('user', user.id, user.email)"><lucide-icon [img]="icons.Trash2" [size]="17" /></button></div></td></tr>
     </tbody></table>
   </div>
   <div *ngIf="section === 'posts' && posts.length" class="table-responsive" tabindex="0" aria-label="User posts">
@@ -38,12 +38,17 @@
         <td><button class="btn btn-outline-danger icon-button" title="Delete post" aria-label="Delete post" (click)="openDelete('post', post.id, post.origin_airport_code + ' to ' + post.destination_airport_code)"><lucide-icon [img]="icons.Trash2" [size]="17" /></button></td></tr>
     </tbody></table>
   </div>
-  <div *ngIf="section === 'activity' && events.length" class="table-responsive" tabindex="0" aria-label="Activity records">
-    <table class="table activity-table"><thead><tr><th>Time</th><th>Actor</th><th>Action / Source</th><th>Record / Recipient</th><th>Details</th></tr></thead><tbody>
-      <tr *ngFor="let event of events"><td>{{ event.created_at | date:'medium' }}<div class="text-muted small">#{{ event.id }}</div></td><td><span class="record-id">{{ event.actor_id || 'System / SQL' }}</span><div *ngIf="event.actor_is_admin" class="small">Admin</div></td><td>{{ event.action }}<div class="source-label">{{ event.source === 'client' ? 'Browser (unverified)' : event.source }}</div></td><td><div>{{ event.entity_type }}</div><span class="record-id">{{ event.entity_id }}</span><div *ngIf="event.subject_user_id" class="record-id">User: {{ event.subject_user_id }}</div></td><td><pre>{{ event.details | json }}</pre></td></tr>
+  <div *ngIf="isActivitySection && events.length" class="table-responsive" tabindex="0" aria-label="Activity records">
+    <table class="table activity-table"><thead><tr><th>Time</th><th>User</th><th>Activity</th><th>Record</th></tr></thead><tbody>
+      <tr *ngFor="let event of events">
+        <td>{{ event.created_at | date:'medium' }}<div class="text-muted small">#{{ event.id }}</div></td>
+        <td><strong>{{ event.actor_display_name || event.actor_email || 'System / SQL' }}</strong><div class="record-id" *ngIf="event.actor_id">{{ event.actor_id }}</div><div *ngIf="event.actor_is_admin" class="small">Admin</div></td>
+        <td><strong>{{ activityTitle(event) }}</strong><div class="source-label">{{ activityMeta(event) }}</div><div class="activity-detail" *ngIf="activityDetail(event)">{{ activityDetail(event) }}</div></td>
+        <td><div>{{ event.entity_type || '-' }}</div><span class="record-id">{{ event.entity_id || '-' }}</span><div *ngIf="event.subject_user_id" class="record-id">Recipient: {{ event.subject_display_name || event.subject_email || event.subject_user_id }}</div></td>
+      </tr>
     </tbody></table>
   </div>
-  <p *ngIf="section !== 'overview' && !total" class="empty-state">No {{ section === 'activity' ? 'activity records' : section }} found.</p>
+  <p *ngIf="section !== 'overview' && !total" class="empty-state">No {{ isActivitySection ? 'activity records' : section }} found.</p>
   <footer *ngIf="section !== 'overview'" class="pagination-bar">
     <span>{{ total ? offset + 1 : 0 }}-{{ pageEnd }} of {{ total | number }}</span>
     <div><button class="btn btn-outline-secondary icon-button" title="Previous page" aria-label="Previous page" [disabled]="offset === 0" (click)="page(-1)"><lucide-icon [img]="icons.ChevronLeft" [size]="18" /></button>

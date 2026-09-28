@@ -203,11 +203,27 @@ begin
       from public.itineraries i left join auth.users u on u.id = i.owner_id';
     v_filter := 'where $1 = '''' or origin_airport_code ilike ''%'' || $1 || ''%''
       or destination_airport_code ilike ''%'' || $1 || ''%'' or owner_email ilike ''%'' || $1 || ''%'' or id::text = $1';
-  elsif p_section = 'activity' then
-    v_query := 'select id, created_at, actor_id, actor_is_admin, source, action, entity_type, entity_id, subject_user_id, details from public.activity_events';
-    v_filter := 'where ($1 = '''' or action ilike ''%'' || $1 || ''%'' or entity_id = $1)
+  elsif p_section in ('activity', 'user-activity') then
+    v_query := 'select e.id, e.created_at, e.actor_id, e.actor_is_admin, e.source, e.action, e.entity_type, e.entity_id,
+      e.subject_user_id, e.details, au.email as actor_email, ap.display_name as actor_display_name,
+      su.email as subject_email, sp.display_name as subject_display_name
+      from public.activity_events e
+      left join auth.users au on au.id = e.actor_id
+      left join public.profiles ap on ap.id = e.actor_id
+      left join auth.users su on su.id = e.subject_user_id
+      left join public.profiles sp on sp.id = e.subject_user_id';
+    if p_section = 'user-activity' then
+      v_filter := 'where ($1 = '''' or action ilike ''%'' || $1 || ''%'' or entity_id = $1
+        or actor_id::text = $1 or subject_user_id::text = $1
+        or actor_email ilike ''%'' || $1 || ''%'' or actor_display_name ilike ''%'' || $1 || ''%''
+        or subject_email ilike ''%'' || $1 || ''%'' or subject_display_name ilike ''%'' || $1 || ''%'')
+        and ($4 = '''' or source = $4) and ($5 is null or actor_id = $5 or subject_user_id = $5)
+        and ($6 is null or created_at >= $6) and ($7 is null or created_at < $7)';
+    else
+      v_filter := 'where ($1 = '''' or action ilike ''%'' || $1 || ''%'' or entity_id = $1)
       and ($4 = '''' or source = $4) and ($5 is null or actor_id = $5 or subject_user_id = $5)
       and ($6 is null or created_at >= $6) and ($7 is null or created_at < $7)';
+    end if;
   else raise exception 'Invalid admin section.';
   end if;
   -- Only constant SQL fragments are interpolated. All caller values are bound.
