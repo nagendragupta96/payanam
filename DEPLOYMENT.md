@@ -175,6 +175,15 @@ Disable the mock gateway before enabling real payments; never expose service-rol
 keys or permit browsers to call fulfillment directly. Real provider code and
 recurring billing are not included in this demo implementation.
 
+### Language Dropdown Configuration
+
+Edit `src/app/config/languages.ts` to configure the Languages Known choices for
+Post Trip and Edit Itinerary, then rebuild and deploy Angular. The dropdown
+supports up to 20 selections and stores the selected names in the existing
+`languages_known` array. No additional SQL migration is needed after 018.
+Keep existing names stable; removing a choice prevents new trips from selecting
+it, but existing trips retain it as a selectable value during editing.
+
 ### Verification
 
 `npm run test:notifications` covers checkout creation/completion, missing
@@ -373,6 +382,11 @@ rows between pages, so refresh when needed.
 - `npm run test:itinerary-languages`: isolated PostgreSQL migration tests for the
   languages-known itinerary column and public search view.
 - `npm run build`: Angular production compile.
+- With Angular on `127.0.0.1:4201`, run `node scripts/verify-language-dropdown.mjs`
+  with Playwright installed (`PLAYWRIGHT_MODULE` may point to its package directory).
+  It checks selection/removal, create/edit payloads, legacy languages, the selection
+  limit, keyboard access, and desktop/mobile layout with external traffic mocked.
+  Set `LANGUAGE_TEST_URL` to use a different local port.
 - Start Angular on `127.0.0.1:4201`, then run `node scripts/verify-admin.mjs` with
   Playwright installed (`PLAYWRIGHT_MODULE` can point to the package directory).
   Set `ADMIN_TEST_URL` for another local port. Headless Edge checks desktop/mobile,
