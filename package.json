@@ -10,7 +10,8 @@
     "test:notifications": "node --test supabase/tests/premium-upgrade.test.mjs supabase/tests/premium-plan-schema.test.mjs",
     "test:destination": "node --test supabase/tests/remove-destination.test.mjs",
     "test:admin": "node --test supabase/tests/admin-activity.test.mjs",
-    "test:itinerary-languages": "node --test supabase/tests/itinerary-languages.test.mjs"
+    "test:itinerary-languages": "node --test supabase/tests/itinerary-languages.test.mjs",
+    "test:personal-activity": "node --test supabase/tests/personal-activity-anonymous.test.mjs"
   },
   "private": true,
   "dependencies": {

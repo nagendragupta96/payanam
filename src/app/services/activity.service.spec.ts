@@ -36,6 +36,14 @@ describe('Activity HTTP transport', () => {
     expect((await activityFetch('https://example.invalid/rest/v1/profiles')).ok).toBeTrue();
   });
 
+  it('reading personal history does not add HTTP noise to that history', async () => {
+    const listener = jasmine.createSpy();
+    setApiActivityListener(listener);
+    spyOn(window, 'fetch').and.resolveTo(new Response('{}'));
+    await activityFetch('https://example.invalid/rest/v1/rpc/my_activity');
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   it('reports failure without swallowing the original network error', async () => {
     const complete = jasmine.createSpy();
     setApiActivityListener(() => complete);
@@ -80,6 +88,21 @@ describe('Activity batching', () => {
     sessions.next(session('second'));
     tick(1000); flushMicrotasks();
     expect(rpc).not.toHaveBeenCalled();
+  }));
+
+  it('records fixed button names but does not collect arbitrary button text', fakeAsync(() => {
+    const button = document.createElement('button');
+    document.body.append(button);
+    button.textContent = 'Publish itinerary';
+    button.click();
+    button.textContent = 'PRIVATE message or account name';
+    button.click();
+    button.remove();
+    tick(1000); flushMicrotasks();
+    const events = rpc.calls.mostRecent().args[1].p_events;
+    expect(events[0].control).toBe('publish');
+    expect(events[1].control).toMatch(/^button:\d+$/);
+    expect(JSON.stringify(events)).not.toContain('PRIVATE');
   }));
 
   it('aborts an in-flight batch when the account changes', fakeAsync(() => {

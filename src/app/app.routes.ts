@@ -17,6 +17,7 @@ import { SubscriptionComponent } from './pages/subscription/subscription.compone
 import { CheckoutComponent } from './pages/subscription/checkout.component';
 
 export const routes: Routes = [
+  { path: 'activity', canActivate: [authGuard], loadComponent: () => import('./pages/activity/activity.component').then(m => m.ActivityComponent) },
   { path: 'admin', pathMatch: 'full', redirectTo: 'admin/overview' },
   { path: 'admin/:section', canActivate: [adminGuard], loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent) },
   { path: 'admin-access', canActivate: [authGuard], loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminAccessComponent) },

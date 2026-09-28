@@ -37,6 +37,7 @@ export class ItineraryService {
       start_date: itinerary.start_date,
       end_date: itinerary.end_date ?? itinerary.start_date,
       languages_known: itinerary.languages_known ?? [],
+      is_anonymous: itinerary.is_anonymous ?? false,
       notes: itinerary.notes ?? null,
       // backward-compat writes
       origin_airport: itinerary.origin_airport_code,
@@ -122,6 +123,7 @@ export class ItineraryService {
             start_date: itinerary.start_date,
             end_date: itinerary.end_date ?? itinerary.start_date,
             languages_known: itinerary.languages_known ?? [],
+            is_anonymous: itinerary.is_anonymous ?? false,
             notes: itinerary.notes ?? null,
             origin_airport: itinerary.origin_airport_code,
             destination_airport: itinerary.destination_airport_code,
@@ -326,8 +328,14 @@ export class ItineraryService {
     };
   }
 
+  async findPublicById(id: string): Promise<{ data: Itinerary | null; error: string | null }> {
+    const result = await this.withTimeout('itinerary.publicDetail', supabase.from('public_itinerary_search').select('*').eq('id', id).maybeSingle());
+    return { data: result.data as Itinerary | null, error: result.error?.message ?? null };
+  }
+
   async findById(id: string): Promise<{ data: Itinerary | null; error: string | null }> {
     const header = await this.withTimeout('itinerary.findById.header', supabase.from('itineraries').select('*').eq('id', id).maybeSingle());
+    if (!header.error && !header.data) return this.findPublicById(id);
     if (header.error) this.logQueryError('findById.header', header.error.message);
     if (header.error) return { data: null, error: header.error.message };
     if (!header.data) return { data: null, error: null };

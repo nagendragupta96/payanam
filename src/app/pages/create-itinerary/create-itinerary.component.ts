@@ -26,6 +26,12 @@ import { LANGUAGE_OPTIONS } from '../../config/languages';
         <form #tripFormEl [formGroup]="form" (ngSubmit)="submit()" novalidate>
           <h3 class="h6 mb-2">Basic Trip Information</h3>
 
+          <div class="form-check mb-3">
+            <input id="postAnonymously" type="checkbox" class="form-check-input" formControlName="is_anonymous" aria-describedby="anonymousHelp" />
+            <label class="form-check-label" for="postAnonymously">Post anonymously</label>
+            <div id="anonymousHelp" class="form-text">Hide my name in search. Requests, chats, and approved contact sharing may show my identity.</div>
+          </div>
+
           <div class="row g-2 mb-2">
             <div class="col-md-6">
               <label class="form-label" for="originAirport">Origin Airport Code <span class="text-danger">*</span><app-help-icon [text]="'Enter the starting airport code, for example JFK or HYD.'" ariaLabel="Origin airport help"></app-help-icon></label>
@@ -207,6 +213,7 @@ export class CreateItineraryComponent {
     start_date: ['', Validators.required],
     end_date: ['', Validators.required],
     notes: [''],
+    is_anonymous: this.fb.nonNullable.control(false),
     languages_known: this.fb.nonNullable.control<string[]>([], Validators.maxLength(20)),
     contact_name: [''],
     contact_phone: [''],
@@ -298,6 +305,7 @@ export class CreateItineraryComponent {
         start_date: result.data.start_date ?? '',
         end_date: result.data.end_date ?? result.data.start_date ?? '',
         notes: result.data.notes ?? '',
+        is_anonymous: result.data.is_anonymous ?? false,
         languages_known: savedLanguages
       });
 
@@ -422,6 +430,7 @@ export class CreateItineraryComponent {
       start_date: value.start_date ?? '',
       end_date: value.end_date ?? value.start_date ?? '',
       languages_known: value.languages_known,
+      is_anonymous: value.is_anonymous,
       notes: value.notes ?? null,
       contact_details: {
         contact_name: value.contact_name ?? null,
