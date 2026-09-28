@@ -1,5 +1,4 @@
 import { Injectable } from '@angular/core';
-import { PostgrestError } from '@supabase/supabase-js';
 import { dataFetchErrorMessage, runSupabaseQuery, supabase } from './supabase-client';
 import { AuthService } from './auth.service';
 
@@ -34,60 +33,21 @@ export class RequestService {
     requestType: RequestType,
     message: string | null = null
   ): Promise<{ data: RequestRecord | null; existing: boolean; error: string | null }> {
-    const itinerary = await this.runQuery(
-      'createOrGetRequest.itinerary',
-      supabase
-        .from('itineraries')
-        .select('owner_id')
-        .eq('id', itineraryId)
-        .single()
-    );
-
-    if (itinerary.error) {
-      this.handleAuthFailure('createOrGetRequest.itinerary', itinerary.error.message);
-      return { data: null, existing: false, error: itinerary.error.message };
+    if (requesterId !== this.authService.currentSession?.user.id) {
+      return { data: null, existing: false, error: 'Sign in required.' };
     }
-
-    const ownerId = itinerary.data.owner_id as string;
-
-    if (ownerId === requesterId) {
-      return { data: null, existing: false, error: 'You cannot send a request for your own trip.' };
+    try {
+      const { data, error } = await this.runQuery('createOrGetRequest', supabase.rpc('create_itinerary_request', {
+        p_itinerary: itineraryId, p_type: requestType, p_message: message
+      }));
+      if (error) {
+        this.handleAuthFailure('createOrGetRequest', error.message);
+        return { data: null, existing: false, error: error.message };
+      }
+      return { data: data?.data ?? null, existing: data?.existing === true, error: data?.data ? null : 'Unable to create request.' };
+    } catch (error) {
+      return { data: null, existing: false, error: dataFetchErrorMessage('Creating request', error) };
     }
-
-    const existing = await this.findLatestRequestByType(itineraryId, requesterId, ownerId, requestType);
-    if (existing.error) return { data: null, existing: false, error: existing.error };
-
-    if (existing.data && this.isActiveStatus(existing.data.status)) {
-      return { data: existing.data, existing: true, error: null };
-    }
-
-    const inserted = await this.runQuery(
-      'createOrGetRequest.insert',
-      supabase
-        .from('requests')
-        .insert({
-          itinerary_id: itineraryId,
-          requester_id: requesterId,
-          owner_id: ownerId,
-          request_type: requestType,
-          status: 'PENDING',
-          message
-        })
-        .select('*')
-        .single()
-    );
-
-    if (!inserted.error && inserted.data) {
-      return { data: inserted.data as RequestRecord, existing: false, error: null };
-    }
-
-    if (this.isUniquePairError(inserted.error)) {
-      const raced = await this.findActiveRequest(itineraryId, requesterId, ownerId, requestType);
-      if (raced.data) return { data: raced.data, existing: true, error: null };
-      return { data: null, existing: false, error: raced.error ?? 'An active request already exists.' };
-    }
-
-    return { data: null, existing: false, error: inserted.error?.message ?? 'Unable to create request.' };
   }
 
   async findLatestRequestByType(itineraryId: string, requesterId: string, ownerId: string, requestType: RequestType) {
@@ -336,15 +296,6 @@ export class RequestService {
     }
 
     return { counts, error: null };
-  }
-
-  private isActiveStatus(status: RequestRecord['status']): boolean {
-    return status === 'PENDING' || status === 'ACCEPTED';
-  }
-
-  private isUniquePairError(error: PostgrestError | null): boolean {
-    if (!error) return false;
-    return error.message.includes('requests_unique_pair') || error.message.includes('requests_active_unique_idx') || error.code === '23505';
   }
 
   private handleAuthFailure(operation: string, message: string): void {

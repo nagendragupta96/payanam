@@ -33,7 +33,7 @@
   @if (item.logout) {
     <button type="button" class="nav-entry logout-entry" (click)="signOut()">Logout</button>
   } @else {
-    <a [routerLink]="item.path" class="nav-entry" [class.active]="active(item)"
+    <a [routerLink]="item.path" [attr.data-activity]="'nav-' + item.path.slice(1)" class="nav-entry" [class.active]="active(item)"
       [attr.aria-current]="active(item) ? 'page' : null" (click)="close()">
       <ng-container *ngTemplateOutlet="content; context: { $implicit: item }"></ng-container>
     </a>

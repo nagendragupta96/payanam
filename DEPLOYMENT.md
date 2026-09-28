@@ -184,6 +184,33 @@ supports up to 20 selections and stores the selected names in the existing
 Keep existing names stable; removing a choice prevents new trips from selecting
 it, but existing trips retain it as a selectable value during editing.
 
+### Personal Activity and Anonymous Trips
+
+Apply `supabase/019_personal_activity_anonymous_trips.sql` after 018 and before
+deploying the updated Angular app. It is safe to rerun. No production SQL is
+executed by the application or the test scripts.
+
+Every signed-in account has a My Activity page. Its RPC derives the user from
+the current session and returns only actions performed by or affecting that
+account. The response excludes other users' identities and private audit details
+such as moderation reasons. The page includes recorded button/field actions,
+navigation, data request outcomes, account changes and notification events.
+History uses the existing 017 audit collection: it cannot reconstruct earlier
+actions or guarantee browser delivery during offline periods or blocked telemetry.
+Fixed control labels make new events readable without collecting arbitrary UI
+text, input values, passwords, tokens or notification bodies. Older positional
+button events are described generically because their original labels were not stored.
+
+Post anonymously is optional and defaults to off, including existing trips.
+The public search view returns Anonymous and masks the owner ID for other users;
+raw anonymous-trip reads are restricted to the owner and request participants.
+Anonymous posting hides identity while browsing, not during requests, chats,
+approved contact sharing or administrator moderation. User-entered notes and
+contact details are not anonymized. The checkbox can be changed when editing.
+The server resolves trip ownership when creating requests and serializes requests
+for the same itinerary to avoid duplicate active requests. Contact approval rules
+remain in force. Deploy this migration before the frontend's new request RPC.
+
 ### Verification
 
 `npm run test:notifications` covers checkout creation/completion, missing
@@ -382,6 +409,12 @@ rows between pages, so refresh when needed.
 - `npm run test:itinerary-languages`: isolated PostgreSQL migration tests for the
   languages-known itinerary column and public search view.
 - `npm run build`: Angular production compile.
+- `npm run test:personal-activity`: PostgreSQL tests for personal-history isolation,
+  redaction, pagination and filters; anonymous/public visibility; and request creation.
+- With Angular running locally, `node scripts/verify-personal-activity.mjs` checks
+  personal history, errors/retry, filters, pagination, anonymous search and requests.
+  Use `ACTIVITY_TEST_URL` for a port other than 4201 and `PLAYWRIGHT_MODULE` for an
+  external Playwright package. All external traffic is mocked or blocked.
 - With Angular on `127.0.0.1:4201`, run `node scripts/verify-language-dropdown.mjs`
   with Playwright installed (`PLAYWRIGHT_MODULE` may point to its package directory).
   It checks selection/removal, create/edit payloads, legacy languages, the selection

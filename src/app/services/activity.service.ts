@@ -4,10 +4,11 @@ import { Subscription } from 'rxjs';
 import { AuthService } from './auth.service';
 import { runSupabaseQuery, supabase } from './supabase-client';
 import { setApiActivityListener } from './activity-transport';
+import { ACTIVITY_CONTROLS } from '../shared/activity-labels';
 
 interface ClientActivity { action: string; area: string; control: string; }
 const areas = new Set(['home', 'auth', 'profile', 'create-itinerary', 'edit-itinerary', 'my-trips',
-  'search', 'itinerary', 'requests', 'messages', 'chat', 'notifications', 'settings', 'subscription', 'admin', 'admin-access']);
+  'search', 'itinerary', 'requests', 'messages', 'chat', 'notifications', 'activity', 'settings', 'subscription', 'admin', 'admin-access']);
 
 @Injectable({ providedIn: 'root' })
 export class ActivityService implements OnDestroy {
@@ -49,10 +50,12 @@ export class ActivityService implements OnDestroy {
 
   private onInteraction = (event: Event): void => {
     if (!(event.target instanceof Element)) return;
-    const target = event.target.closest('button,a,input,select,textarea,form,[role="tab"]');
+    const target = event.target.closest('button,a,input,select,textarea,form,summary,[role="tab"]');
     if (!target || target.closest('[inert], [aria-hidden="true"]')) return;
-    // Static control IDs only. No values, labels, message text or URL parameters.
-    const id = target.getAttribute('data-activity') || target.getAttribute('formcontrolname') || target.id;
+    // Match only a fixed allowlist. Arbitrary labels and form values stay private.
+    const fixedLabel = target.matches('button,a')
+      ? Object.entries(ACTIVITY_CONTROLS).find(([, label]) => label.toLowerCase() === (target.getAttribute('aria-label') || target.textContent || '').trim().toLowerCase())?.[0] : undefined;
+    const id = target.getAttribute('data-activity') || fixedLabel || target.getAttribute('formcontrolname') || target.id;
     const control = id && /^[a-zA-Z][a-zA-Z_-]{0,60}$/.test(id) ? id
       : `${target.tagName.toLowerCase()}:${Array.from(document.querySelectorAll(target.tagName)).indexOf(target)}`;
     this.record(event.type, control);

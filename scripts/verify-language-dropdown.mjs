@@ -48,6 +48,8 @@ try {
   await page.goto(base + '/create-itinerary');
   const summary = page.locator('#languagesKnown');
   await summary.waitFor();
+  assert.equal(await page.getByLabel('Post anonymously', { exact: true }).isChecked(), false);
+  await page.getByLabel('Post anonymously', { exact: true }).check();
   assert.equal(await page.locator('input[formControlName="languages_known"]').count(), 0);
   await summary.focus();
   await page.keyboard.press('Enter');
@@ -68,11 +70,14 @@ try {
   await page.getByRole('button', { name: 'Publish itinerary', exact: true }).click();
   await page.waitForURL('**/my-trips?**');
   assert.deepEqual(writes.at(-1).languages_known, ['English', 'Telugu']);
+  assert.equal(writes.at(-1).is_anonymous, true);
 
   trip.languages_known = ['english', 'Telugu', 'Legacy language'];
   await page.goto(base + '/edit-itinerary/' + trip.id);
   await page.getByRole('button', { name: 'Save Itinerary Changes' }).waitFor();
   await summary.filter({ hasText: 'Legacy language' }).waitFor();
+  assert.equal(await page.getByLabel('Post anonymously', { exact: true }).isChecked(), true);
+  await page.getByLabel('Post anonymously', { exact: true }).uncheck();
   await summary.click();
   assert.equal(await page.getByRole('checkbox', { name: 'English', exact: true }).isChecked(), true);
   assert.equal(await page.getByRole('checkbox', { name: 'Legacy language', exact: true }).isChecked(), true);
@@ -86,6 +91,7 @@ try {
   await page.getByRole('button', { name: 'Save Itinerary Changes' }).click();
   await page.waitForURL('**/my-trips?**');
   assert.deepEqual(writes.at(-1).languages_known, ['English', 'Telugu', 'Legacy language']);
+  assert.equal(writes.at(-1).is_anonymous, false);
 
   await page.goto(base + '/create-itinerary');
   await summary.click();

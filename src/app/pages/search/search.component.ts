@@ -7,7 +7,6 @@ import { AuthService } from '../../services/auth.service';
 import { ItineraryService } from '../../services/itinerary.service';
 import { RequestService, RequestType } from '../../services/request.service';
 import { ItineraryContactService } from '../../services/itinerary-contact.service';
-import { ChatService } from '../../services/chat.service';
 import { AirportAutocompleteService, AirportEntry } from '../../services/airport-autocomplete.service';
 import { HelpIconComponent } from '../../shared/help-icon.component';
 
@@ -97,7 +96,7 @@ import { HelpIconComponent } from '../../shared/help-icon.component';
                 <td>{{ stopAirport(item, 1) }}</td>
                 <td>{{ flightNumbers(item) }}</td>
                 <td>{{ languageList(item) }}</td>
-                <td>{{ ownerLabel(item.owner_id) }}</td>
+                <td>{{ ownerLabel(item) }}</td>
               </tr>
             </tbody>
           </table>
@@ -125,7 +124,7 @@ import { HelpIconComponent } from '../../shared/help-icon.component';
               <p><strong>Route:</strong> {{ selectedTrip.origin_airport_code }} → {{ selectedTrip.destination_airport_code }}</p>
               <p><strong>Travel:</strong> {{ selectedTrip.start_date }} → {{ selectedTrip.end_date || 'One way' }}</p>
               <p><strong>Languages:</strong> {{ languageList(selectedTrip) }}</p>
-              <p><strong>Posted by:</strong> {{ ownerLabel(selectedTrip.owner_id) }}</p>
+              <p><strong>Posted by:</strong> {{ ownerLabel(selectedTrip) }}</p>
 
               <h6>Legs</h6>
               <ul class="list-group mb-3">
@@ -227,7 +226,6 @@ export class SearchComponent {
   canViewContactDetails = false;
 
   contactForm: any = { contact_name: '', contact_phone: '', contact_email: '', notes: '' };
-  private ownerLabels: Record<string, string> = {};
   private latestRequestByType: Partial<Record<RequestType, 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED'>> = {};
 
   form = this.fb.group({
@@ -245,7 +243,6 @@ export class SearchComponent {
     private authService: AuthService,
     private requestService: RequestService,
     private itineraryContactService: ItineraryContactService,
-    private chatService: ChatService,
     private airportAutocompleteService: AirportAutocompleteService,
     private router: Router
   ) {}
@@ -258,9 +255,8 @@ export class SearchComponent {
     return !!this.selectedTrip && this.selectedTrip.owner_id === this.authService.currentSession?.user.id;
   }
 
-  ownerLabel(ownerId?: string): string {
-    if (!ownerId) return 'User';
-    return this.ownerLabels[ownerId] || 'User';
+  ownerLabel(itinerary: Itinerary): string {
+    return itinerary.is_anonymous ? 'Anonymous' : itinerary.posted_by || 'Traveler';
   }
 
   stopAirport(item: Itinerary, legIndex: number): string {
@@ -327,9 +323,6 @@ export class SearchComponent {
         this.errorMessage = error;
         this.focusTopError();
       }
-
-      const ownerIds = [...new Set(data.map((d) => d.owner_id).filter(Boolean))] as string[];
-      this.ownerLabels = await this.chatService.getProfileNames(ownerIds);
     } catch {
       this.errorMessage = 'Search failed. Please try again.';
       this.focusTopError();
@@ -348,7 +341,7 @@ export class SearchComponent {
     this.contactForm = { contact_name: '', contact_phone: '', contact_email: '', notes: '' };
 
     try {
-      const { data, error } = await this.itineraryService.findById(item.id!);
+      const { data, error } = await this.itineraryService.findPublicById(item.id!);
       if (error || !data) {
         this.selectedTrip = item;
         this.tripError = ''; // Use already-loaded public card details without showing false error.
@@ -359,10 +352,6 @@ export class SearchComponent {
         ...data,
         has_contact_details: data.has_contact_details ?? item.has_contact_details ?? false
       };
-      if (data.owner_id && !this.ownerLabels[data.owner_id]) {
-        const one = await this.chatService.getProfileNames([data.owner_id]);
-        this.ownerLabels = { ...this.ownerLabels, ...one };
-      }
       await this.loadLatestRequestStates();
       await this.loadContactDetails();
     } catch {

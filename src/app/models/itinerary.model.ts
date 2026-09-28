@@ -13,6 +13,8 @@ export interface FlightLeg {
 export interface Itinerary {
   id?: string;
   owner_id?: string;
+  is_anonymous?: boolean;
+  posted_by?: string;
   origin_airport_code: string;
   destination_airport_code: string;
   start_date: string;
