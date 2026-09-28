@@ -3,7 +3,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from './auth.service';
 import { runSupabaseQuery, supabase } from './supabase-client';
 
-export type AdminSection = 'overview' | 'users' | 'posts' | 'activity';
+export type AdminSection = 'overview' | 'users' | 'posts' | 'activity' | 'user-activity';
 export interface AdminUser {
   id: string; email: string; display_name: string; created_at: string;
   last_sign_in_at: string | null; is_admin: boolean; is_premium: boolean; posts: number;
@@ -16,6 +16,8 @@ export interface ActivityEvent {
   id: number; created_at: string; actor_id: string | null; actor_is_admin: boolean;
   source: string; action: string; entity_type: string | null; entity_id: string | null;
   subject_user_id: string | null; details: Record<string, unknown>;
+  actor_email?: string | null; actor_display_name?: string | null;
+  subject_email?: string | null; subject_display_name?: string | null;
 }
 export interface AdminPage<T> { rows: T[]; total: number; }
 

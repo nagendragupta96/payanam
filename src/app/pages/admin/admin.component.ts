@@ -1,9 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, OnDestroy, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { LucideAngularModule, RefreshCw, Search, Trash2, ChevronLeft, ChevronRight, X } from 'lucide-angular';
-import { Subscription } from 'rxjs';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { LucideAngularModule, RefreshCw, Search, Trash2, ChevronLeft, ChevronRight, X, Activity } from 'lucide-angular';
+import { combineLatest, Subscription } from 'rxjs';
 import { AdminPage, AdminPost, AdminSection, AdminService, AdminUser, ActivityEvent } from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
 
@@ -13,10 +13,11 @@ import { AuthService } from '../../services/auth.service';
   templateUrl: './admin.component.html', styleUrl: './admin.component.css'
 })
 export class AdminComponent implements OnDestroy {
-  readonly icons = { RefreshCw, Search, Trash2, ChevronLeft, ChevronRight, X };
+  readonly icons = { RefreshCw, Search, Trash2, ChevronLeft, ChevronRight, X, Activity };
   readonly tabs: { id: AdminSection; label: string }[] = [
     { id: 'overview', label: 'Overview' }, { id: 'users', label: 'Users' },
-    { id: 'posts', label: 'Posts' }, { id: 'activity', label: 'Activity' }
+    { id: 'posts', label: 'Posts' }, { id: 'activity', label: 'Activity' },
+    { id: 'user-activity', label: 'User Activity' }
   ];
   readonly groups = [
     { name: 'Accounts', metrics: [['users', 'Total users'], ['new_users_30d', 'Joined in 30 days'], ['premium_users', 'Premium users'], ['admins', 'Administrators']] },
@@ -41,11 +42,14 @@ export class AdminComponent implements OnDestroy {
   private subscriptions = new Subscription();
   private opener?: HTMLElement;
 
-  constructor(public admin: AdminService, public auth: AuthService, route: ActivatedRoute) {
-    this.subscriptions.add(route.paramMap.subscribe(params => {
+  constructor(public admin: AdminService, public auth: AuthService, route: ActivatedRoute, private router: Router) {
+    this.subscriptions.add(combineLatest([route.paramMap, route.queryParamMap]).subscribe(([params, query]) => {
       const section = params.get('section');
       this.section = this.tabs.find(tab => tab.id === section)?.id ?? 'overview';
-      this.search = ''; this.source = ''; this.actor = ''; this.from = ''; this.to = '';
+      this.search = query.get('search') ?? '';
+      this.source = query.get('source') ?? '';
+      this.actor = this.section === 'user-activity' ? (query.get('user') ?? '') : '';
+      this.from = query.get('from') ?? ''; this.to = query.get('to') ?? '';
       this.offset = 0; this.notice = '';
       void this.load();
     }));
@@ -73,7 +77,7 @@ export class AdminComponent implements OnDestroy {
         this.total = data.total;
         if (this.section === 'users') this.users = data.rows as AdminUser[];
         if (this.section === 'posts') this.posts = data.rows as AdminPost[];
-        if (this.section === 'activity') this.events = data.rows as ActivityEvent[];
+        if (this.isActivitySection) this.events = data.rows as ActivityEvent[];
       }
     } catch (error) {
       if (version === this.requestVersion) this.error = error instanceof Error ? error.message : 'Unable to load admin data.';
@@ -83,6 +87,113 @@ export class AdminComponent implements OnDestroy {
   applyFilters(): void { this.offset = 0; void this.load(); }
   page(direction: number): void { this.offset = Math.max(0, this.offset + direction * this.pageSize); void this.load(); }
   get pageEnd(): number { return Math.min(this.offset + this.pageSize, this.total); }
+  get isActivitySection(): boolean { return this.section === 'activity' || this.section === 'user-activity'; }
+
+  async viewUserActivity(user: AdminUser): Promise<void> {
+    await this.router.navigate(['/admin', 'user-activity'], { queryParams: { user: user.id } });
+  }
+
+  activityTitle(event: ActivityEvent): string {
+    const actor = this.personLabel(event.actor_display_name, event.actor_email, event.actor_id, 'System');
+    const subject = this.personLabel(event.subject_display_name, event.subject_email, event.subject_user_id, 'recipient');
+    const table = this.entityLabel(event.entity_type);
+    const changed = this.changedFields(event).join(', ');
+    switch (event.action) {
+      case 'navigation': return `${actor} opened ${this.areaLabel(event)}.`;
+      case 'click': return `${actor} clicked ${this.controlLabel(event)}${this.areaSuffix(event)}.`;
+      case 'change': return `${actor} changed ${this.controlLabel(event)}${this.areaSuffix(event)}.`;
+      case 'submit': return `${actor} submitted ${this.controlLabel(event)}${this.areaSuffix(event)}.`;
+      case 'focus': return `${actor} returned to the app.`;
+      case 'hidden': return `${actor} left the app window.`;
+      case 'visible': return `${actor} returned to the app window.`;
+      case 'online': return `${actor} came back online.`;
+      case 'offline': return `${actor} went offline.`;
+      case 'api.start': return `${actor} started a data request${this.areaSuffix(event)}.`;
+      case 'api.success': return `${actor} completed a data request${this.areaSuffix(event)}.`;
+      case 'api.error': return `${actor} hit a data request error${this.areaSuffix(event)}.`;
+      case 'notification.available': return `A notification became available for ${subject}.`;
+      case 'admin.overview': return `${actor} viewed admin overview stats.`;
+      case 'admin.list': return `${actor} opened the ${this.detailText(event, 'section', 'admin')} admin list.`;
+      case 'admin.delete_post': return `${actor} deleted a post.`;
+      case 'admin.delete_user': return `${actor} deleted ${subject}'s account.`;
+    }
+
+    const [entity, operation] = event.action.split('.');
+    if (operation === 'insert') return `${actor} created ${this.entityLabel(entity)}.`;
+    if (operation === 'delete') return `${actor} deleted ${this.entityLabel(entity)}.`;
+    if (operation === 'update') return `${actor} updated ${this.entityLabel(entity)}${changed ? ` (${changed})` : ''}.`;
+    return `${actor} performed ${event.action}.`;
+  }
+
+  activityMeta(event: ActivityEvent): string {
+    const parts = [
+      this.sourceLabel(event.source),
+      event.actor_is_admin ? 'Admin action' : '',
+      event.entity_id ? `${this.entityLabel(event.entity_type)} ${event.entity_id}` : '',
+      event.subject_user_id ? `User ${event.subject_user_id}` : ''
+    ].filter(Boolean);
+    return parts.join(' · ');
+  }
+
+  activityDetail(event: ActivityEvent): string {
+    if (event.action === 'admin.delete_post' || event.action === 'admin.delete_user') {
+      return `Reason: ${this.detailText(event, 'reason', 'Not provided')}`;
+    }
+    if (event.action === 'notifications.insert') {
+      return `Notification type: ${this.detailText(event, 'notification_type', 'General')}`;
+    }
+    if (event.action === 'notifications.update' && Object.prototype.hasOwnProperty.call(event.details ?? {}, 'is_read')) {
+      return `Notification marked ${event.details['is_read'] ? 'read' : 'unread'}.`;
+    }
+    const status = this.detailText(event, 'status', '');
+    const previousStatus = this.detailText(event, 'previous_status', '');
+    if (status && previousStatus && status !== previousStatus) return `Status changed from ${previousStatus} to ${status}.`;
+    if (status) return `Status: ${status}.`;
+    const changed = this.changedFields(event);
+    if (changed.length) return `Changed fields: ${changed.join(', ')}.`;
+    return '';
+  }
+
+  private personLabel(name: string | null | undefined, email: string | null | undefined, id: string | null | undefined, fallback: string): string {
+    return name || email || id || fallback;
+  }
+
+  private entityLabel(value: string | null | undefined): string {
+    const labels: Record<string, string> = {
+      users: 'account', profiles: 'profile', itineraries: 'post', itinerary_legs: 'itinerary leg',
+      itinerary_contact_details: 'contact details', requests: 'request', chat_threads: 'conversation',
+      chat_messages: 'message', subscriptions: 'subscription', subscription_checkouts: 'checkout',
+      notifications: 'notification', app_admins: 'admin role', sessions: 'session'
+    };
+    return labels[value ?? ''] ?? (value || 'record');
+  }
+
+  private sourceLabel(value: string): string {
+    return value === 'client' ? 'Browser activity' : value === 'admin' ? 'Admin console' : 'Database';
+  }
+
+  private areaLabel(event: ActivityEvent): string {
+    return this.detailText(event, 'area', 'the app');
+  }
+
+  private areaSuffix(event: ActivityEvent): string {
+    const area = this.detailText(event, 'area', '');
+    return area ? ` in ${area}` : '';
+  }
+
+  private controlLabel(event: ActivityEvent): string {
+    return this.detailText(event, 'control', 'a control');
+  }
+
+  private detailText(event: ActivityEvent, key: string, fallback: string): string {
+    const value = event.details?.[key];
+    return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+  }
+
+  private changedFields(event: ActivityEvent): string[] {
+    const value = event.details?.['changed_fields'];
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  }
 
   openDelete(kind: 'user' | 'post', id: string, label: string): void {
     this.opener = document.activeElement as HTMLElement;

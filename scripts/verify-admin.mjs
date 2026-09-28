@@ -20,8 +20,8 @@ let users = Array.from({ length: 27 }, (_, index) => ({ id: `10000000-0000-0000-
   is_admin: index === 0, is_premium: index % 2 === 0, posts: index }));
 let posts = [{ id: '20000000-0000-0000-0000-000000000001', owner_id: users[1].id,
   owner_email: users[1].email, origin_airport_code: 'JFK', destination_airport_code: 'LHR', start_date: '2026-12-01', end_date: '2026-12-03', created_at: now, requests: 4 }];
-const events = [{ id: 1, created_at: now, actor_id: user.id, actor_is_admin: true, source: 'admin', action: 'admin.delete_post', entity_type: 'itineraries', entity_id: posts[0].id, subject_user_id: users[1].id, details: { reason: 'Duplicate trip' } },
-  { id: 2, created_at: now, actor_id: users[1].id, actor_is_admin: false, source: 'database', action: 'notifications.insert', entity_type: 'notifications', entity_id: posts[0].id, subject_user_id: user.id, details: { notification_type: 'AUTO_MATCH', is_read: false } }];
+const events = [{ id: 1, created_at: now, actor_id: user.id, actor_email: user.email, actor_display_name: 'Test administrator', actor_is_admin: true, source: 'admin', action: 'admin.delete_post', entity_type: 'itineraries', entity_id: posts[0].id, subject_user_id: users[1].id, subject_email: users[1].email, subject_display_name: users[1].display_name, details: { reason: 'Duplicate trip' } },
+  { id: 2, created_at: now, actor_id: users[1].id, actor_email: users[1].email, actor_display_name: users[1].display_name, actor_is_admin: false, source: 'database', action: 'notifications.insert', entity_type: 'notifications', entity_id: posts[0].id, subject_user_id: user.id, subject_email: user.email, subject_display_name: 'Test administrator', details: { notification_type: 'AUTO_MATCH', is_read: false } }];
 await context.routeWebSocket('**/*', socket => {
   if (new URL(socket.url()).hostname === '127.0.0.1') socket.connectToServer(); else socket.close();
 });
@@ -48,6 +48,7 @@ await context.route('**/*', async route => {
         let rows = body.p_section === 'users' ? users : body.p_section === 'posts' ? posts : events;
         if (body.p_search) rows = rows.filter(row => JSON.stringify(row).includes(body.p_search));
         if (body.p_source) rows = rows.filter(row => row.source === body.p_source);
+        if (body.p_actor) rows = rows.filter(row => row.actor_id === body.p_actor || row.subject_user_id === body.p_actor);
         data = { rows: rows.slice(body.p_offset, body.p_offset + body.p_limit), total: rows.length };
       }
     } else if (name.startsWith('admin_delete_')) {
@@ -79,6 +80,13 @@ try {
   await page.getByText('26-27 of 27', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Previous page' }).click();
   await page.getByText('1-25 of 27', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'View activity' }).nth(1).click();
+  await page.getByRole('link', { name: 'User Activity', exact: true }).waitFor();
+  await page.getByText('Test user 1 created notification.', { exact: true }).waitFor();
+  assert.equal(calls.at(-1).body.p_section, 'user-activity');
+  assert.equal(calls.at(-1).body.p_actor, users[1].id);
+  await page.getByRole('link', { name: 'Users', exact: true }).click();
+  await page.getByText('1-25 of 27', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Delete account' }).nth(1).click();
   assert.equal(await page.getByRole('button', { name: 'Delete permanently' }).isDisabled(), true);
   await page.getByLabel('Reason', { exact: true }).fill('Confirmed duplicate test account');
@@ -104,7 +112,7 @@ try {
   await page.getByRole('button', { name: 'Delete permanently' }).click();
   await page.getByText('No posts found.', { exact: true }).waitFor();
   await page.getByRole('link', { name: 'Activity', exact: true }).click();
-  await page.getByRole('cell', { name: 'notifications.insert database', exact: true }).waitFor();
+  await page.getByText('Test user 1 created notification.', { exact: true }).waitFor();
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 950 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Activity fits ${width}`);
