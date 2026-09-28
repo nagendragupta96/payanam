@@ -7,6 +7,7 @@ import { HelpIconComponent } from '../../shared/help-icon.component';
 import { ItineraryContactService } from '../../services/itinerary-contact.service';
 import { ItineraryService } from '../../services/itinerary.service';
 import { AirportAutocompleteService, AirportEntry } from '../../services/airport-autocomplete.service';
+import { LANGUAGE_OPTIONS } from '../../config/languages';
 
 @Component({
   selector: 'app-create-itinerary',
@@ -45,9 +46,22 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
           </div>
 
           <div class="mb-2">
-            <label class="form-label" for="languagesKnown">Languages Known (Optional) <app-help-icon [text]="'List languages you can speak or understand, separated by commas. Example: English, Telugu, Hindi.'" ariaLabel="Languages known help"></app-help-icon></label>
-            <input id="languagesKnown" class="form-control" formControlName="languages_known" maxlength="300" />
-            <div class="form-text">Separate multiple languages with commas.</div>
+            <span id="languagesKnownLabel" class="form-label d-block">Languages Known (Optional)</span>
+            <details #languageDropdown class="language-dropdown" (keydown.escape)="languageDropdown.open = false; languageSummary.focus(); $event.stopPropagation()">
+              <summary #languageSummary id="languagesKnown" class="form-select" aria-labelledby="languagesKnownLabel languagesKnownValue">
+                <span id="languagesKnownValue">{{ form.controls.languages_known.value.join(', ') || 'Select languages' }}</span>
+              </summary>
+              <div class="language-options border rounded p-2" role="group" aria-labelledby="languagesKnownLabel">
+                <label *ngFor="let language of languageOptions" class="language-option d-flex align-items-center gap-2 p-2">
+                  <input type="checkbox" class="form-check-input m-0" [value]="language"
+                    [checked]="form.controls.languages_known.value.includes(language)"
+                    [disabled]="loading || (form.controls.languages_known.value.length >= 20 && !form.controls.languages_known.value.includes(language))"
+                    (change)="toggleLanguage(language, $event)" />
+                  <span>{{ language }}</span>
+                </label>
+              </div>
+            </details>
+            <div class="text-danger small" *ngIf="isFieldInvalid('languages_known')">Select no more than 20 languages.</div>
           </div>
 
           <div class="row g-2 mb-2">
@@ -157,6 +171,13 @@ import { AirportAutocompleteService, AirportEntry } from '../../services/airport
   `,
   styles: [
     `
+      .language-dropdown summary { cursor: pointer; list-style: none; white-space: normal; overflow-wrap: anywhere; }
+      .language-dropdown summary::-webkit-details-marker { display: none; }
+      .language-dropdown summary:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 2px; }
+      .language-options { max-height: 16rem; overflow-y: auto; margin-top: 0.25rem; }
+      .language-option { cursor: pointer; overflow-wrap: anywhere; }
+      .language-option:hover { background: var(--bs-tertiary-bg); }
+      .language-option input { flex-shrink: 0; }
     `
   ]
 })
@@ -172,6 +193,7 @@ export class CreateItineraryComponent {
   today = new Date().toISOString().slice(0, 10);
   itineraryId = this.route.snapshot.paramMap.get('id') ?? '';
   private initialFormSnapshot = '';
+  languageOptions = [...LANGUAGE_OPTIONS];
 
   private readonly airportCodePattern = /^[A-Z]{3,4}$/;
 
@@ -185,7 +207,7 @@ export class CreateItineraryComponent {
     start_date: ['', Validators.required],
     end_date: ['', Validators.required],
     notes: [''],
-    languages_known: [''],
+    languages_known: this.fb.nonNullable.control<string[]>([], Validators.maxLength(20)),
     contact_name: [''],
     contact_phone: [''],
     contact_email: [''],
@@ -265,13 +287,18 @@ export class CreateItineraryComponent {
       );
       this.form.setControl('legs', legsArray);
 
+      const savedLanguages = [...new Set((result.data.languages_known ?? []).map(language =>
+        LANGUAGE_OPTIONS.find(option => option.toLowerCase() === language.toLowerCase()) ?? language
+      ))];
+      // Retain legacy choices so editing another field cannot silently erase them.
+      this.languageOptions = [...new Set([...LANGUAGE_OPTIONS, ...savedLanguages])].sort((a, b) => a.localeCompare(b));
       this.form.patchValue({
         origin_airport_code: result.data.origin_airport_code ?? '',
         destination_airport_code: result.data.destination_airport_code ?? '',
         start_date: result.data.start_date ?? '',
         end_date: result.data.end_date ?? result.data.start_date ?? '',
         notes: result.data.notes ?? '',
-        languages_known: (result.data.languages_known ?? []).join(', ')
+        languages_known: savedLanguages
       });
 
       const contact = await this.itineraryContactService.getByItinerary(this.itineraryId);
@@ -394,7 +421,7 @@ export class CreateItineraryComponent {
       destination_airport_code: normalize(value.destination_airport_code),
       start_date: value.start_date ?? '',
       end_date: value.end_date ?? value.start_date ?? '',
-      languages_known: this.normalizeLanguages(value.languages_known),
+      languages_known: value.languages_known,
       notes: value.notes ?? null,
       contact_details: {
         contact_name: value.contact_name ?? null,
@@ -455,20 +482,21 @@ export class CreateItineraryComponent {
     return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
   }
 
-  private normalizeLanguages(value: string | null | undefined): string[] {
-    const seen = new Set<string>();
-    return (value ?? '')
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .map((item) => item.slice(0, 40))
-      .filter((item) => {
-        const key = item.toLocaleLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, 20);
+  toggleLanguage(language: string, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const control = this.form.controls.languages_known;
+    if (this.loading || !this.languageOptions.includes(language)) return;
+    if (input.checked && !control.value.includes(language)) {
+      if (control.value.length >= 20) {
+        input.checked = false;
+        return;
+      }
+      control.setValue([...control.value, language]);
+    } else if (!input.checked) {
+      control.setValue(control.value.filter(value => value !== language));
+    }
+    control.markAsDirty();
+    control.markAsTouched();
   }
 
   private focusErrorAndFirstInvalidField(): void {
