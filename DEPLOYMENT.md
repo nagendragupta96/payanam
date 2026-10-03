@@ -211,6 +211,14 @@ The server resolves trip ownership when creating requests and serializes request
 for the same itinerary to avoid duplicate active requests. Contact approval rules
 remain in force. Deploy this migration before the frontend's new request RPC.
 
+### Travel Community
+
+Apply `supabase/020_travel_community.sql` after 019 and before deploying the
+Community frontend. It adds four RLS-protected tables and bounded read/reaction
+RPCs. No Realtime or authentication configuration changes are required.
+See `docs/travel-community.md` for permissions, moderation, trip-data privacy,
+pagination, deployment steps and verification commands.
+
 ### Verification
 
 `npm run test:notifications` covers checkout creation/completion, missing

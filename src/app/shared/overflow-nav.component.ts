@@ -45,6 +45,7 @@ export class OverflowNavComponent implements AfterViewInit, OnChanges, OnDestroy
       ...(this.loggedIn ? [
         { path: '/create-itinerary', label: 'Post Trip' },
         { path: '/my-trips', label: 'My Trips' },
+        { path: '/community', label: 'Community' },
         { path: '/requests', label: 'Requests', count: this.requestCount },
         { path: '/messages', label: 'Messages', count: this.messageCount },
         { path: '/notifications', label: 'Notifications', count: this.notificationCount },

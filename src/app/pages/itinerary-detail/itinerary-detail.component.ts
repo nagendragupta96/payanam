@@ -28,6 +28,8 @@ import { Itinerary } from '../../models/itinerary.model';
 
           <div class="alert alert-secondary" *ngIf="isSelfTrip">This is your trip.</div>
 
+          <a class="btn btn-outline-primary me-2" *ngIf="isSelfTrip" routerLink="/community/new" [queryParams]="{trip: itinerary.id}">Post to Community</a>
+
           <a class="btn btn-outline-secondary me-2" *ngIf="isSelfTrip" [routerLink]="['/edit-itinerary', itinerary.id]">
             Edit Itinerary
           </a>
