@@ -14,7 +14,7 @@ export const ACTIVITY_CONTROLS: Record<string, string> = {
 };
 
 export const ACTIVITY_AREAS: Record<string, string> = {
-  home: 'Home', auth: 'Sign in', profile: 'Profile', 'create-itinerary': 'Post Trip',
+  community: 'Travel Community', home: 'Home', auth: 'Sign in', profile: 'Profile', 'create-itinerary': 'Post Trip',
   'edit-itinerary': 'Edit Itinerary', 'my-trips': 'My Trips', search: 'Search',
   itinerary: 'Trip details', requests: 'Requests', messages: 'Messages', chat: 'Messages',
   notifications: 'Notifications', activity: 'My Activity', settings: 'Settings',
@@ -31,7 +31,8 @@ const entities: Record<string, string> = {
   itineraries: 'trip', itinerary_legs: 'trip leg', itinerary_contact_details: 'trip contact details',
   profiles: 'profile', users: 'account', requests: 'request', chat_threads: 'conversation',
   chat_messages: 'message', subscriptions: 'subscription', subscription_checkouts: 'checkout',
-  notifications: 'notification', app_admins: 'admin access'
+  notifications: 'notification', app_admins: 'admin access', community_posts: 'community post',
+  community_comments: 'community comment', community_reactions: 'community reaction', community_reports: 'community report'
 };
 
 function controlName(control = ''): string {

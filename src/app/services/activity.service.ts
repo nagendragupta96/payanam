@@ -8,7 +8,7 @@ import { ACTIVITY_CONTROLS } from '../shared/activity-labels';
 
 interface ClientActivity { action: string; area: string; control: string; }
 const areas = new Set(['home', 'auth', 'profile', 'create-itinerary', 'edit-itinerary', 'my-trips',
-  'search', 'itinerary', 'requests', 'messages', 'chat', 'notifications', 'activity', 'settings', 'subscription', 'admin', 'admin-access']);
+  'search', 'itinerary', 'requests', 'messages', 'chat', 'notifications', 'activity', 'community', 'settings', 'subscription', 'admin', 'admin-access']);
 
 @Injectable({ providedIn: 'root' })
 export class ActivityService implements OnDestroy {

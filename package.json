@@ -11,7 +11,8 @@
     "test:destination": "node --test supabase/tests/remove-destination.test.mjs",
     "test:admin": "node --test supabase/tests/admin-activity.test.mjs",
     "test:itinerary-languages": "node --test supabase/tests/itinerary-languages.test.mjs",
-    "test:personal-activity": "node --test supabase/tests/personal-activity-anonymous.test.mjs"
+    "test:personal-activity": "node --test supabase/tests/personal-activity-anonymous.test.mjs",
+    "test:community": "node --test supabase/tests/community.test.mjs"
   },
   "private": true,
   "dependencies": {

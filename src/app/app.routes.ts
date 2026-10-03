@@ -17,6 +17,11 @@ import { SubscriptionComponent } from './pages/subscription/subscription.compone
 import { CheckoutComponent } from './pages/subscription/checkout.component';
 
 export const routes: Routes = [
+  { path: 'community', canActivate: [authGuard], loadComponent: () => import('./pages/community/community.component').then(m => m.CommunityComponent) },
+  { path: 'community/new', canActivate: [authGuard], loadComponent: () => import('./pages/community/community-editor.component').then(m => m.CommunityEditorComponent) },
+  { path: 'community/my-posts', canActivate: [authGuard], data: { mine: true }, loadComponent: () => import('./pages/community/community.component').then(m => m.CommunityComponent) },
+  { path: 'community/:postId/edit', canActivate: [authGuard], loadComponent: () => import('./pages/community/community-editor.component').then(m => m.CommunityEditorComponent) },
+  { path: 'community/:postId', canActivate: [authGuard], loadComponent: () => import('./pages/community/community-detail.component').then(m => m.CommunityDetailComponent) },
   { path: 'activity', canActivate: [authGuard], loadComponent: () => import('./pages/activity/activity.component').then(m => m.ActivityComponent) },
   { path: 'admin', pathMatch: 'full', redirectTo: 'admin/overview' },
   { path: 'admin/:section', canActivate: [adminGuard], loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent) },
